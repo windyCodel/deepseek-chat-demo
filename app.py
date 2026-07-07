@@ -1,4 +1,7 @@
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from lunardate import LunarDate
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -24,38 +27,175 @@ AGENT_SYSTEM_PROMPT = """
 
 你的定位：
 1. 你专注于传统命理、八字、紫微斗数、风水、塔罗、易经、姓名学、择日、运势分析等主题。
-2. 你的回答要有专业感、结构清晰、语言温和。
-3. 你不能把玄学分析说成绝对事实，必须说明这类内容仅供传统文化、娱乐和自我反思参考。
+2. 你的回答必须使用简体中文，语言温和、结构清晰。
+3. 玄学内容仅供传统文化、娱乐和自我反思参考，不能说成绝对事实。
 4. 你不能替代医学、法律、金融、心理治疗等专业建议。
-5. 如果用户信息不足，你要主动追问必要信息，而不是直接乱算。
-6. 如果用户问八字，需要询问出生年月日、出生时间、出生地、性别。
-7. 如果用户问塔罗，需要询问具体问题、当前背景、想看短期还是长期。
-8. 如果用户问风水，需要询问房屋朝向、户型、房间用途、常住人数、现场照片或文字描述。
-9. 如果用户问运势，需要先确认时间范围，例如本月、今年、未来三个月等。
-10. 如果用户的问题涉及重大人生决策，你要提醒用户结合现实情况理性判断。
+5. 不要制造恐惧，不要说“你一定会怎样”，多使用“可能倾向于”“可以作为参考”。
 
-回答格式：
-优先使用以下结构：
+信息收集规则：
+1. 不要一次性列出很多问题。
+2. 如果需要补充信息，每次最多只问 1 个核心问题。
+3. 用户回答后，再继续问下一步需要的信息。
+4. 如果用户只是问通用运势，例如“今年运势怎么样”“2026年整体趋势”，可以直接给通用分析，不要强制索要出生信息。
+5. 如果用户想做个人精准分析，再一步步收集信息。
+6. 如果用户问八字或个人运势，信息收集顺序为：
+   第一步：询问出生日期，并说明公历或农历都可以。
+   第二步：询问出生时间。
+   第三步：询问出生地。
+   第四步：询问性别。
+   第五步：询问重点关注方向，例如事业、财运、感情、健康或整体。
+7. 如果用户问塔罗，先只询问一个具体问题，例如“你想看感情、事业还是某个人的想法？”
+8. 如果用户问风水，先只询问房屋类型或想看的区域，例如“你想看客厅、卧室、办公室还是整体布局？”
+9. 如果用户问择日，先只询问具体事项，例如搬家、结婚、开业、签约等。
+10. 当信息不足时，不要长篇解释，只需要简短说明下一步需要什么。
+
+回答方式：
+1. 普通回答要简洁，不要太长。
+2. 如果是在收集信息，只用一句话提问，不要使用分段标题。
+3. 不要一次输出超过 5 个要点，除非用户要求详细分析。
+4. 不要使用 Markdown 加粗标题，例如不要输出 **一、基础判断**。
+5. 只有当用户明确要求详细分析，或者信息已经收集完整后，才使用以下结构：
 一、基础判断
 二、关键影响因素
 三、可能趋势
 四、建议与注意事项
 五、补充说明
-
-回答风格：
-1. 必须使用简体中文。
-2. 不要过度神秘化。
-3. 不要制造恐惧。
-4. 不要说“你一定会怎样”。
-5. 多使用“从传统文化角度看”、“可能倾向于”、“可以作为参考”这类表达。
-6. 回答要聚焦用户的问题，不要发散。
 """
+
+LUNAR_MONTH_NAMES = [
+    "",
+    "正月", "二月", "三月", "四月", "五月", "六月",
+    "七月", "八月", "九月", "十月", "冬月", "腊月"
+]
+
+LUNAR_DAY_NAMES = [
+    "",
+    "初一", "初二", "初三", "初四", "初五", "初六", "初七", "初八", "初九", "初十",
+    "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十",
+    "廿一", "廿二", "廿三", "廿四", "廿五", "廿六", "廿七", "廿八", "廿九", "三十"
+]
+
+WEEKDAY_NAMES = ["一", "二", "三", "四", "五", "六", "日"]
+
+
+def get_current_calendar_context(timezone_name: str | None = None):
+    if not timezone_name:
+        timezone_name = "Asia/Shanghai"
+
+    try:
+        user_tz = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        user_tz = ZoneInfo("Asia/Shanghai")
+        timezone_name = "Asia/Shanghai"
+
+    now = datetime.now(user_tz)
+
+    solar_date_text = now.strftime("%Y年%m月%d日")
+    weekday_text = WEEKDAY_NAMES[now.weekday()]
+
+    lunar = LunarDate.fromSolarDate(now.year, now.month, now.day)
+
+    leap_text = "闰" if lunar.isLeapMonth else ""
+    lunar_month_text = LUNAR_MONTH_NAMES[lunar.month]
+    lunar_day_text = LUNAR_DAY_NAMES[lunar.day]
+
+    lunar_date_text = f"农历{lunar.year}年{leap_text}{lunar_month_text}{lunar_day_text}"
+
+    return {
+        "timezone_name": timezone_name,
+        "solar_year": now.year,
+        "solar_date_text": solar_date_text,
+        "weekday_text": weekday_text,
+        "lunar_year": lunar.year,
+        "lunar_date_text": lunar_date_text,
+    }
+
+
+def detect_calendar_need(text: str) -> str:
+    """
+    返回值：
+    none  = 不需要日期
+    solar = 只需要公历
+    lunar = 需要农历，通常也同时需要公历
+    both  = 公历和农历都需要
+    """
+    if not text:
+        return "none"
+
+    text = text.strip()
+
+    lunar_keywords = [
+        "农历", "阴历", "黄历", "择日", "吉日", "良辰",
+        "八字", "四柱", "大运", "流年", "生肖", "属相",
+        "节气", "立春", "命理", "紫微", "卦", "起卦",
+        "搬家", "结婚", "开业", "入宅", "安床", "祭祀"
+    ]
+
+    solar_keywords = [
+        "今天", "明天", "后天", "昨天",
+        "今年", "明年", "去年",
+        "本月", "这个月", "下个月", "上个月",
+        "日期", "几号", "星期", "周几",
+        "公历", "阳历", "生日", "现在", "当前"
+    ]
+
+    has_lunar = any(k in text for k in lunar_keywords)
+    has_solar = any(k in text for k in solar_keywords)
+
+    if has_lunar and has_solar:
+        return "both"
+
+    if has_lunar:
+        return "lunar"
+
+    if has_solar:
+        return "solar"
+
+    return "none"
+
+
+def build_runtime_system_prompt(user_text: str, timezone_name: str | None = None) -> str:
+    calendar_need = detect_calendar_need(user_text)
+
+    if calendar_need == "none":
+        return AGENT_SYSTEM_PROMPT
+
+    calendar_context = get_current_calendar_context(timezone_name)
+
+    solar_info = (
+        f"\n\n当前公历日期信息：\n"
+        f"1. 当前用户时区：{calendar_context['timezone_name']}。\n"
+        f"2. 当前公历日期：{calendar_context['solar_date_text']}，星期{calendar_context['weekday_text']}。\n"
+        f"3. 当前公历年份：{calendar_context['solar_year']}年。\n"
+        f"4. 当用户说“今年”时，如果没有特别说明，默认指当前用户时区下的公历年份：{calendar_context['solar_year']}年。"
+    )
+
+    lunar_info = (
+        f"\n\n当前农历日期信息：\n"
+        f"1. 当前农历日期：{calendar_context['lunar_date_text']}。\n"
+        f"2. 当前农历年份：农历{calendar_context['lunar_year']}年。\n"
+        f"3. 当用户说“农历今年”“流年”“生肖年”“命理年份”时，需要参考当前农历日期。\n"
+        f"4. 八字、四柱、流年、节气换年可能涉及立春分界；如果没有排盘工具，不要武断判断，需要提示用户提供出生年月日、出生时间、出生地。"
+    )
+
+    if calendar_need == "solar":
+        return AGENT_SYSTEM_PROMPT + solar_info
+
+    if calendar_need == "lunar":
+        return AGENT_SYSTEM_PROMPT + solar_info + lunar_info
+
+    if calendar_need == "both":
+        return AGENT_SYSTEM_PROMPT + solar_info + lunar_info
+
+    return AGENT_SYSTEM_PROMPT
+
 
 app = FastAPI()
 
 
 class ChatRequest(BaseModel):
     messages: list
+    timezone: str | None = None
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -218,7 +358,8 @@ async def index():
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        messages: messages
+                        messages: messages,
+                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
                     })
                 });
 
@@ -276,11 +417,18 @@ async def chat(req: ChatRequest):
 
         normal_messages = [m for m in messages if m.get("role") != "system"]
 
-        # 后端固定专属 Agent Prompt，避免前端被用户随意修改
+        latest_user_text = ""
+        for m in reversed(normal_messages):
+            if m.get("role") == "user":
+                latest_user_text = m.get("content", "")
+                break
+
+        runtime_system_prompt = build_runtime_system_prompt(latest_user_text, req.timezone)
+
         final_messages = [
             {
                 "role": "system",
-                "content": AGENT_SYSTEM_PROMPT
+                "content": runtime_system_prompt
             }
         ] + normal_messages[-10:]
 
