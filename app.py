@@ -205,18 +205,28 @@ async def index():
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>筮渡 AI - 传统文化分析助手</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            height: 100%;
+        }
+
         body {
             font-family: Arial, "Microsoft YaHei", sans-serif;
             background: #f5f5f5;
             margin: 0;
-            padding: 0;
+            padding: 24px 12px;
+            min-height: 100%;
         }
 
         .container {
-            width: 760px;
-            margin: 40px auto;
+            width: min(760px, 100%);
+            margin: 16px auto;
             background: white;
             border-radius: 12px;
             padding: 20px;
@@ -225,10 +235,15 @@ async def index():
 
         h2 {
             margin-top: 0;
+            margin-bottom: 16px;
+            font-size: 22px;
+            line-height: 1.35;
         }
 
         #chatBox {
             height: 480px;
+            max-height: calc(100vh - 220px);
+            min-height: 320px;
             overflow-y: auto;
             border: 1px solid #ddd;
             border-radius: 8px;
@@ -241,6 +256,7 @@ async def index():
             margin: 10px 0;
             line-height: 1.6;
             white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
 
         .user {
@@ -258,6 +274,8 @@ async def index():
             max-width: 85%;
             padding: 10px 12px;
             border-radius: 10px;
+            text-align: left;
+            word-break: break-word;
         }
 
         .user .bubble {
@@ -276,21 +294,87 @@ async def index():
         #userInput {
             flex: 1;
             height: 70px;
+            min-width: 0;
+            width: 100%;
             padding: 10px;
             font-size: 15px;
+            line-height: 1.5;
             resize: none;
+            border: 1px solid #ddd;
+            border-radius: 8px;
         }
 
         button {
             width: 100px;
+            min-height: 44px;
             font-size: 16px;
             cursor: pointer;
+            border: 0;
+            border-radius: 8px;
+            background: #1a73e8;
+            color: white;
         }
 
         .small-btn {
             width: 100px;
             height: 36px;
             margin-top: 10px;
+            background: #eeeeee;
+            color: #333;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .container {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                min-height: 100vh;
+                min-height: 100dvh;
+                margin: 0;
+                padding: 14px;
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            h2 {
+                font-size: 20px;
+                margin-bottom: 12px;
+            }
+
+            #chatBox {
+                flex: 1;
+                height: auto;
+                min-height: 0;
+                max-height: none;
+            }
+
+            .bubble {
+                max-width: 92%;
+            }
+
+            .input-row {
+                flex-direction: column;
+            }
+
+            #userInput {
+                height: 88px;
+                font-size: 16px;
+            }
+
+            button,
+            .small-btn {
+                width: 100%;
+            }
+
+            .small-btn {
+                height: 42px;
+                margin-top: 8px;
+            }
         }
     </style>
 </head>
