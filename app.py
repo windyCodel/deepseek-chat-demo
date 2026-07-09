@@ -70,6 +70,15 @@ AGENT_SYSTEM_PROMPT = """
 五、补充说明
 """
 
+PRIVACY_SYSTEM_PROMPT = """
+隐私与安全提醒规则：
+1. 用户输入的内容会发送给 DeepSeek API 生成回复；本站当前没有主动保存聊天记录的数据库逻辑。
+2. 不要要求用户提供身份证号、手机号、详细住址、银行卡、账号密码、验证码、病历、工作单位等敏感信息。
+3. 做八字、运势、择日等分析时，出生地只需要城市级别，不需要街道、门牌号或精确住址。
+4. 做姓名分析时，可以提醒用户使用昵称、化名或只提供需要分析的名字，不要提交证件号码等无关隐私。
+5. 如果用户主动输入明显敏感的信息，要先提醒其不必提供这类信息，并只基于必要的非敏感内容继续。
+"""
+
 LUNAR_MONTH_NAMES = [
     "",
     "正月", "二月", "三月", "四月", "五月", "六月",
@@ -169,7 +178,7 @@ def build_runtime_system_prompt(
     forced_calendar_need: str | None = None,
 ) -> str:
     calendar_need = forced_calendar_need or detect_calendar_need(user_text)
-    prompt_parts = [AGENT_SYSTEM_PROMPT]
+    prompt_parts = [AGENT_SYSTEM_PROMPT, PRIVACY_SYSTEM_PROMPT]
 
     if calendar_need == "none":
         if skill_prompt:
@@ -322,6 +331,17 @@ async def index():
             color: #666;
             font-size: 14px;
             line-height: 1.5;
+        }
+
+        .privacy-notice {
+            margin: 0 0 14px;
+            padding: 10px 12px;
+            border: 1px solid #f0dfb5;
+            border-radius: 8px;
+            background: #fff8e6;
+            color: #725400;
+            font-size: 13px;
+            line-height: 1.6;
         }
 
         .skill-panel {
@@ -519,6 +539,10 @@ async def index():
                 margin-bottom: 12px;
             }
 
+            .privacy-notice {
+                font-size: 12px;
+            }
+
             #chatBox {
                 flex: 1;
                 height: auto;
@@ -565,6 +589,7 @@ async def index():
     <div class="container">
         <h2>筮渡 AI - 传统文化分析助手</h2>
         <p class="subtitle">选择一个方向开始，也可以直接输入问题，系统会自动识别合适的技能。</p>
+        <p class="privacy-notice">隐私提示：你输入的内容会发送给 DeepSeek API 用于生成回复。请勿填写身份证号、手机号、详细住址、银行卡、密码、验证码、病历等敏感信息；八字出生地写到城市即可。</p>
 
         <div class="skill-panel">
             <div class="skill-buttons" aria-label="技能选择">
@@ -607,7 +632,7 @@ async def index():
             },
             bazi: {
                 placeholder: "例如：我想看八字，重点看今年事业和财运",
-                hint: "八字分析：会按出生日期、时间、地点、性别、关注方向一步步收集信息。"
+                hint: "八字分析：会按出生日期、时间、出生城市、性别、关注方向一步步收集信息，不需要详细住址。"
             },
             tarot: {
                 placeholder: "例如：帮我抽塔罗，看看这段感情接下来怎么发展",
@@ -619,7 +644,7 @@ async def index():
             },
             naming: {
                 placeholder: "例如：帮我分析名字“林知夏”，看看寓意和风格",
-                hint: "姓名分析：从读音、字义、风格、寓意和实用性给建议。"
+                hint: "姓名分析：从读音、字义、风格、寓意和实用性给建议；可以用昵称或化名，不要提交证件号码等隐私。"
             }
         };
 
