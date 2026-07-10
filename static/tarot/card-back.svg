@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 420" role="img" aria-labelledby="title desc">
+  <title id="title">筮渡塔罗牌背</title>
+  <desc id="desc">深色星月几何纹样塔罗牌背。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#20153b"/>
+      <stop offset="0.52" stop-color="#30205b"/>
+      <stop offset="1" stop-color="#0f2747"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="35%" r="58%">
+      <stop offset="0" stop-color="#ffe6a7" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#ffe6a7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="240" height="420" rx="20" fill="url(#bg)"/>
+  <rect x="13" y="13" width="214" height="394" rx="15" fill="none" stroke="#d8b66d" stroke-width="4"/>
+  <rect x="25" y="25" width="190" height="370" rx="11" fill="url(#glow)" stroke="#f3d58a" stroke-width="1.5" opacity="0.95"/>
+  <path d="M120 64 136 103 178 106 146 133 156 174 120 152 84 174 94 133 62 106 104 103Z" fill="none" stroke="#f5d98c" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="120" cy="210" r="62" fill="none" stroke="#f5d98c" stroke-width="2.5"/>
+  <circle cx="120" cy="210" r="38" fill="none" stroke="#f5d98c" stroke-width="1.6" opacity="0.75"/>
+  <path d="M140 175a43 43 0 1 0 0 70 55 55 0 1 1 0-70Z" fill="#f5d98c" opacity="0.95"/>
+  <path d="M120 287 152 320 120 353 88 320Z" fill="none" stroke="#f5d98c" stroke-width="2.4"/>
+  <path d="M63 210h114M120 153v114M74 164l92 92M166 164l-92 92" stroke="#f5d98c" stroke-width="1.2" opacity="0.55"/>
+  <g fill="#f5d98c">
+    <circle cx="55" cy="58" r="3"/>
+    <circle cx="185" cy="82" r="2.5"/>
+    <circle cx="196" cy="342" r="3"/>
+    <circle cx="47" cy="327" r="2.5"/>
+    <circle cx="120" cy="45" r="2"/>
+    <circle cx="120" cy="376" r="2"/>
+  </g>
+</svg>
