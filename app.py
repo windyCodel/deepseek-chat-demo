@@ -277,6 +277,7 @@ async def tarot_draw(req: TarotDrawRequest):
         )
 
     cards = reveal_tarot_cards(deck, numbers)
+    TAROT_SHUFFLES.pop(req.shuffle_id, None)
 
     return {
         "cards": cards,
@@ -388,6 +389,26 @@ async def index():
 
         .tarot-panel.active {
             display: block;
+        }
+
+        .tarot-question-label {
+            display: block;
+            margin-bottom: 6px;
+            color: #333;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        #tarotQuestion {
+            width: 100%;
+            min-height: 72px;
+            margin-bottom: 8px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            line-height: 1.5;
+            resize: vertical;
         }
 
         .tarot-actions {
@@ -567,6 +588,7 @@ async def index():
                 width: 100%;
             }
 
+            #tarotQuestion,
             #userInput {
                 height: 88px;
                 font-size: 16px;
@@ -603,6 +625,8 @@ async def index():
         </div>
 
         <div id="tarotPanel" class="tarot-panel">
+            <label class="tarot-question-label" for="tarotQuestion">你想问什么问题？</label>
+            <textarea id="tarotQuestion" placeholder="例如：我想看看这三个月感情接下来怎么发展"></textarea>
             <div class="tarot-actions">
                 <button type="button" onclick="shuffleTarot()">洗牌</button>
             </div>
@@ -610,7 +634,7 @@ async def index():
                 <input id="tarotNumbers" type="text" inputmode="numeric" placeholder="输入 3 个数字，例如：7, 24, 66">
                 <button type="button" onclick="drawTarotAndRead()">抽牌并解读</button>
             </div>
-            <div id="tarotStatus" class="tarot-status">先输入你的问题，再点击洗牌，然后从 1-78 中选择 3 个不重复数字。</div>
+            <div id="tarotStatus" class="tarot-status">先在上方写下本次塔罗问题，再点击洗牌，然后从 1-78 中选择 3 个不重复数字。</div>
             <div id="tarotCards" class="tarot-cards"></div>
         </div>
 
@@ -635,8 +659,8 @@ async def index():
                 hint: "八字分析：会按出生日期、时间、出生城市、性别、关注方向一步步收集信息，不需要详细住址。"
             },
             tarot: {
-                placeholder: "例如：帮我抽塔罗，看看这段感情接下来怎么发展",
-                hint: "塔罗：先洗好 78 张牌，你从 1-78 中输入 3 个数字，系统翻牌后再解读。"
+                placeholder: "抽牌完成后，可以在这里继续追问某张牌或某个细节",
+                hint: "塔罗：先在上方写下问题，再洗牌，从 1-78 中输入 3 个数字，系统翻牌后再解读。"
             },
             date_selection: {
                 placeholder: "例如：我想给搬家择日，时间大概在下个月",
@@ -651,6 +675,7 @@ async def index():
         let activeSkillId = "";
         let tarotShuffleId = "";
         let currentTarotCards = null;
+        let currentTarotQuestion = "";
 
         let messages = [
             {
@@ -766,21 +791,45 @@ async def index():
                 });
         }
 
-        function renderTarotCards(cards) {
+        function getTarotQuestion() {
+            return document.getElementById("tarotQuestion").value.trim();
+        }
+
+        function renderTarotCards(cards, question, numbers) {
             const tarotCards = document.getElementById("tarotCards");
             if (!cards || cards.length === 0) {
                 tarotCards.textContent = "";
                 return;
             }
 
-            tarotCards.textContent = cards.map(function(item) {
+            const lines = [];
+            if (question) {
+                lines.push("本次问题：" + question);
+            }
+            if (numbers && numbers.length > 0) {
+                lines.push("你选择了：" + numbers.join("、"));
+            }
+
+            tarotCards.textContent = lines.concat(cards.map(function(item) {
                 return item.position + "（" + item.choice + "）：" + item.card + "（" + item.orientation + "）";
-            }).join("\\n");
+            })).join("\\n");
         }
 
         async function shuffleTarot() {
             setSkill("tarot");
-            setTarotStatus("洗牌中...");
+
+            const question = getTarotQuestion();
+            if (!question) {
+                setTarotStatus("请先在上方写下本次塔罗问题，再点击“洗牌”。");
+                document.getElementById("tarotQuestion").focus();
+                return;
+            }
+
+            setTarotStatus("正在为这个问题洗牌...");
+            tarotShuffleId = "";
+            currentTarotCards = null;
+            currentTarotQuestion = "";
+            document.getElementById("tarotNumbers").value = "";
             renderTarotCards([]);
 
             try {
@@ -795,9 +844,8 @@ async def index():
                 }
 
                 tarotShuffleId = data.shuffle_id;
-                currentTarotCards = null;
-                document.getElementById("tarotNumbers").value = "";
-                setTarotStatus(data.message);
+                currentTarotQuestion = question;
+                setTarotStatus("已为“" + question + "”洗好 78 张牌。请从 1-78 中选择 3 个不重复数字，然后点击“抽牌并解读”。");
             } catch (error) {
                 setTarotStatus("洗牌异常：" + error);
             }
@@ -806,20 +854,35 @@ async def index():
         async function drawTarotAndRead() {
             setSkill("tarot");
 
-            const question = document.getElementById("userInput").value.trim();
+            const question = getTarotQuestion();
             if (!question) {
-                setTarotStatus("请先在输入框里写下你想问的问题。");
+                setTarotStatus("请先在上方写下本次塔罗问题。");
                 return;
             }
 
             if (!tarotShuffleId) {
-                setTarotStatus("请先点击“洗牌”。");
+                setTarotStatus("请先点击“洗牌”，让系统为这个问题打乱 78 张牌。");
+                return;
+            }
+
+            if (question !== currentTarotQuestion) {
+                setTarotStatus("你已经修改了问题，请重新点击“洗牌”，让新的问题对应新的牌序。");
                 return;
             }
 
             const numbers = parseTarotNumbers();
             if (numbers.length !== 3 || numbers.some(function(number) { return !Number.isInteger(number); })) {
                 setTarotStatus("请从 1-78 中输入 3 个整数，例如：7, 24, 66。");
+                return;
+            }
+
+            if (new Set(numbers).size !== numbers.length) {
+                setTarotStatus("3 个数字不能重复，请重新选择。");
+                return;
+            }
+
+            if (numbers.some(function(number) { return number < 1 || number > 78; })) {
+                setTarotStatus("数字必须在 1-78 之间。");
                 return;
             }
 
@@ -844,13 +907,13 @@ async def index():
                 }
 
                 currentTarotCards = data.cards;
-                renderTarotCards(currentTarotCards);
+                renderTarotCards(currentTarotCards, currentTarotQuestion, numbers);
                 setTarotStatus("已翻开你选择的 3 张牌，正在解读...");
 
                 const cardSummary = currentTarotCards.map(function(item) {
                     return item.position + "（" + item.choice + "）：" + item.card + "（" + item.orientation + "）";
                 }).join("\\n");
-                const userText = "我的塔罗问题：" + question
+                const userText = "我的塔罗问题：" + currentTarotQuestion
                     + "\\n我从洗好的 78 张牌里选择了：" + numbers.join("、")
                     + "\\n抽牌结果：\\n" + cardSummary;
 
@@ -860,6 +923,7 @@ async def index():
                 });
 
                 tarotShuffleId = "";
+                currentTarotQuestion = "";
                 setTarotStatus("本次抽牌已完成。要重新占卜，请再次点击“洗牌”。");
             } catch (error) {
                 setTarotStatus("抽牌异常：" + error);
@@ -877,8 +941,11 @@ async def index():
             document.getElementById("chatBox").innerHTML = "";
             tarotShuffleId = "";
             currentTarotCards = null;
+            currentTarotQuestion = "";
+            document.getElementById("tarotQuestion").value = "";
+            document.getElementById("tarotNumbers").value = "";
             renderTarotCards([]);
-            setTarotStatus("先输入你的问题，再点击洗牌，然后从 1-78 中选择 3 个不重复数字。");
+            setTarotStatus("先在上方写下本次塔罗问题，再点击洗牌，然后从 1-78 中选择 3 个不重复数字。");
         }
 
         document.getElementById("userInput").addEventListener("keydown", function(event) {
