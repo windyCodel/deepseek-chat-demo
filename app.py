@@ -1,4 +1,5 @@
 import os
+import random
 from datetime import datetime
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -249,6 +250,19 @@ async def tarot_shuffle():
     }
 
 
+@app.post("/tarot/random-draw")
+async def tarot_random_draw():
+    deck = shuffle_tarot_deck()
+    numbers = random.sample(range(1, len(deck) + 1), 3)
+    cards = reveal_tarot_cards(deck, numbers)
+
+    return {
+        "cards": cards,
+        "numbers": numbers,
+        "deck_size": len(deck),
+    }
+
+
 @app.post("/tarot/draw")
 async def tarot_draw(req: TarotDrawRequest):
     deck = TAROT_SHUFFLES.get(req.shuffle_id)
@@ -347,30 +361,109 @@ async def index():
             line-height: 1.6;
         }
 
-        .skill-panel {
-            margin-bottom: 12px;
+        .app-view {
+            display: none;
         }
 
-        .skill-buttons {
+        .app-view.active {
+            display: block;
+        }
+
+        .chat-view.active {
             display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
+            flex-direction: column;
         }
 
-        .skill-btn {
+        .service-hero {
+            margin: 6px 0 14px;
+        }
+
+        .service-hero h3 {
+            margin: 0 0 6px;
+            font-size: 18px;
+            line-height: 1.4;
+        }
+
+        .service-hero p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .service-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .service-card {
+            width: 100%;
+            min-height: 148px;
+            padding: 16px;
+            border: 1px solid #e3e6ef;
+            border-radius: 10px;
+            background: #ffffff;
+            color: #222;
+            text-align: left;
+            box-shadow: 0 4px 14px rgba(20, 30, 60, 0.06);
+        }
+
+        .service-card:hover {
+            border-color: #1a73e8;
+            box-shadow: 0 8px 22px rgba(26, 115, 232, 0.12);
+        }
+
+        .service-card-title {
+            margin-bottom: 8px;
+            font-size: 17px;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .service-card-desc {
+            color: #555;
+            font-size: 14px;
+            line-height: 1.55;
+        }
+
+        .service-card-meta {
+            margin-top: 12px;
+            color: #1a73e8;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border: 1px solid #e6e7ee;
+            border-radius: 10px;
+            background: #fbfbfd;
+        }
+
+        .back-btn {
             width: auto;
             min-height: 36px;
             padding: 0 12px;
-            border: 1px solid #ddd;
-            background: #f7f7f7;
+            background: #eeeeee;
             color: #333;
             font-size: 14px;
         }
 
-        .skill-btn.active {
-            border-color: #1a73e8;
-            background: #1a73e8;
-            color: white;
+        .current-skill {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .current-skill-name {
+            color: #222;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.4;
         }
 
         .skill-hint {
@@ -380,97 +473,9 @@ async def index():
             line-height: 1.5;
         }
 
-        .tarot-panel {
-            display: none;
-            margin-bottom: 12px;
-            padding: 14px;
-            border: 1px solid #e4e0ec;
-            border-radius: 8px;
-            background: #fbfaff;
-        }
-
-        .tarot-panel.active {
-            display: block;
-        }
-
-        .tarot-flow {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-bottom: 14px;
-        }
-
-        .tarot-step {
-            padding: 8px 10px;
-            border: 1px solid #e5e0ef;
-            border-radius: 8px;
-            background: white;
-            color: #777;
-            font-size: 13px;
-            text-align: center;
-        }
-
-        .tarot-step.active {
-            border-color: #1a73e8;
-            background: #e8f0fe;
-            color: #174ea6;
-            font-weight: 600;
-        }
-
-        .tarot-section {
-            display: none;
-        }
-
-        .tarot-section.active {
-            display: block;
-        }
-
-        .tarot-question-label {
-            display: block;
-            margin-bottom: 6px;
-            color: #333;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        #tarotQuestion {
-            width: 100%;
-            min-height: 86px;
-            margin-bottom: 10px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 15px;
-            line-height: 1.5;
-            resize: vertical;
-        }
-
-        .tarot-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
-
-        .tarot-actions button {
-            width: auto;
-            padding: 0 12px;
-            font-size: 14px;
-        }
-
         .tarot-secondary-btn {
             background: #eeeeee;
             color: #333;
-        }
-
-        .tarot-locked-question {
-            margin-bottom: 12px;
-            padding: 10px 12px;
-            border-radius: 8px;
-            background: white;
-            color: #333;
-            font-size: 14px;
-            line-height: 1.6;
         }
 
         .tarot-number-grid {
@@ -492,84 +497,6 @@ async def index():
             border: 1px solid #ddd;
             border-radius: 8px;
             font-size: 16px;
-        }
-
-        .tarot-status {
-            margin-top: 10px;
-            color: #555;
-            font-size: 13px;
-            line-height: 1.6;
-            white-space: pre-wrap;
-        }
-
-        .tarot-result-summary {
-            margin-bottom: 12px;
-            color: #555;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        .tarot-cards {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-        }
-
-        .tarot-card-button {
-            width: 100%;
-            height: auto;
-            min-height: 0;
-            padding: 8px;
-            border: 1px solid #e2dbea;
-            border-radius: 8px;
-            background: white;
-            color: #222;
-            cursor: pointer;
-        }
-
-        .tarot-card-button:disabled {
-            cursor: default;
-            opacity: 1;
-        }
-
-        .tarot-card-image-wrap {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            aspect-ratio: 240 / 420;
-            overflow: hidden;
-            border-radius: 7px;
-            background: #1f1a38;
-            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.28);
-        }
-
-        .tarot-card-image-wrap img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-
-        .tarot-card-image-wrap img.reversed-card-image {
-            transform: rotate(180deg);
-        }
-
-        .tarot-card-meta {
-            margin-top: 8px;
-            color: #333;
-            font-size: 13px;
-            line-height: 1.45;
-            text-align: center;
-        }
-
-        .tarot-card-position {
-            color: #666;
-            font-size: 12px;
-        }
-
-        .tarot-card-name {
-            margin-top: 2px;
-            font-weight: 600;
         }
 
         #chatBox {
@@ -610,12 +537,171 @@ async def index():
             word-break: break-word;
         }
 
+        .rich-bubble {
+            width: min(620px, 100%);
+            max-width: 100%;
+            background: white;
+            border: 1px solid #e5e0ef;
+            box-shadow: 0 4px 14px rgba(30, 20, 60, 0.06);
+        }
+
         .user .bubble {
             background: #e8f0fe;
         }
 
         .assistant .bubble {
             background: #eeeeee;
+        }
+
+        .assistant .rich-bubble {
+            background: white;
+        }
+
+        .guide-card,
+        .tarot-inline-card {
+            color: #333;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .guide-title,
+        .tarot-inline-title {
+            margin-bottom: 6px;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .guide-card p,
+        .tarot-inline-card p {
+            margin: 6px 0;
+            color: #555;
+        }
+
+        .guide-points {
+            margin: 8px 0;
+            padding-left: 18px;
+            color: #555;
+        }
+
+        .prompt-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .prompt-chip {
+            width: auto;
+            min-height: 32px;
+            padding: 0 10px;
+            border: 1px solid #d7dbe8;
+            background: #f8f9ff;
+            color: #3154a3;
+            font-size: 13px;
+        }
+
+        .tarot-inline-question {
+            margin-top: 8px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: #f7f4ff;
+            color: #3f2f66;
+        }
+
+        .tarot-inline-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .tarot-inline-actions button {
+            width: auto;
+            min-height: 36px;
+            padding: 0 12px;
+            font-size: 14px;
+        }
+
+        .tarot-number-grid.inline {
+            margin-top: 10px;
+        }
+
+        .tarot-flip-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .tarot-flip-card {
+            width: 100%;
+            height: auto;
+            min-height: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: #222;
+            perspective: 1000px;
+        }
+
+        .tarot-flip-inner {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 240 / 420;
+            transition: transform 0.7s ease;
+            transform-style: preserve-3d;
+        }
+
+        .tarot-flip-card.flipped .tarot-flip-inner {
+            transform: rotateY(180deg);
+        }
+
+        .tarot-card-face {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid #ddd6e8;
+            border-radius: 8px;
+            background: #21183c;
+            backface-visibility: hidden;
+            box-shadow: 0 8px 18px rgba(25, 20, 40, 0.16);
+        }
+
+        .tarot-card-face img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .tarot-card-front {
+            transform: rotateY(180deg);
+            background: #faf7ed;
+        }
+
+        .tarot-card-front img.reversed-card-image {
+            transform: rotate(180deg);
+        }
+
+        .tarot-flip-meta {
+            margin-top: 8px;
+            color: #333;
+            font-size: 13px;
+            line-height: 1.45;
+            text-align: center;
+        }
+
+        .tarot-flip-position {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .tarot-flip-name {
+            margin-top: 2px;
+            font-weight: 600;
         }
 
         .input-row {
@@ -690,6 +776,29 @@ async def index():
                 font-size: 12px;
             }
 
+            .service-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .service-card {
+                min-height: 132px;
+            }
+
+            .chat-view.active {
+                flex: 1;
+                min-height: 0;
+            }
+
+            .chat-header {
+                align-items: stretch;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .back-btn {
+                width: 100%;
+            }
+
             #chatBox {
                 flex: 1;
                 height: auto;
@@ -705,21 +814,15 @@ async def index():
                 flex-direction: column;
             }
 
-            .tarot-actions {
-                flex-direction: column;
-            }
-
-            .tarot-actions button {
-                width: 100%;
-            }
-
-            .tarot-flow,
             .tarot-number-grid,
-            .tarot-cards {
+            .tarot-flip-grid {
                 grid-template-columns: 1fr;
             }
 
-            #tarotQuestion,
+            .rich-bubble {
+                width: 100%;
+            }
+
             #userInput {
                 height: 88px;
                 font-size: 16px;
@@ -741,108 +844,107 @@ async def index():
 <body>
     <div class="container">
         <h2>筮渡 AI - 传统文化分析助手</h2>
-        <p class="subtitle">选择一个方向开始，也可以直接输入问题，系统会自动识别合适的技能。</p>
+        <p class="subtitle">先选择你想进行的解答方向，我会进入对应流程一步步引导。</p>
         <p class="privacy-notice">隐私提示：你输入的内容会发送给 DeepSeek API 用于生成回复。请勿填写身份证号、手机号、详细住址、银行卡、密码、验证码、病历等敏感信息；八字出生地写到城市即可。</p>
 
-        <div class="skill-panel">
-            <div class="skill-buttons" aria-label="技能选择">
-                <button type="button" class="skill-btn active" data-skill="">通用</button>
-                <button type="button" class="skill-btn" data-skill="bazi">八字分析</button>
-                <button type="button" class="skill-btn" data-skill="tarot">塔罗</button>
-                <button type="button" class="skill-btn" data-skill="date_selection">择日</button>
-                <button type="button" class="skill-btn" data-skill="naming">姓名分析</button>
+        <section id="serviceView" class="app-view service-view active">
+            <div class="service-hero">
+                <h3>你这次想先看什么？</h3>
+                <p>选一个方向后再进入对话。每个方向都会有自己的提问顺序，不需要一次把所有信息都写完。</p>
             </div>
-            <div id="skillHint" class="skill-hint"></div>
-        </div>
+            <div id="serviceGrid" class="service-grid" aria-label="解答方向"></div>
+        </section>
 
-        <div id="tarotPanel" class="tarot-panel">
-            <div class="tarot-flow" aria-label="塔罗流程">
-                <div id="tarotStepQuestion" class="tarot-step active">1 写下问题</div>
-                <div id="tarotStepDraw" class="tarot-step">2 洗牌抽牌</div>
-                <div id="tarotStepReveal" class="tarot-step">3 点击翻牌</div>
-            </div>
-
-            <div id="tarotQuestionSection" class="tarot-section active">
-                <label class="tarot-question-label" for="tarotQuestion">你想问什么问题？</label>
-                <textarea id="tarotQuestion" placeholder="例如：我想看看这三个月感情接下来怎么发展"></textarea>
-                <div class="tarot-actions">
-                    <button type="button" onclick="shuffleTarot()">开始洗牌</button>
+        <section id="chatView" class="app-view chat-view">
+            <div class="chat-header">
+                <button type="button" class="back-btn" onclick="showServiceView()">返回选择</button>
+                <div class="current-skill">
+                    <div id="currentSkillName" class="current-skill-name"></div>
+                    <div id="skillHint" class="skill-hint"></div>
                 </div>
             </div>
 
-            <div id="tarotDrawSection" class="tarot-section">
-                <div id="tarotLockedQuestion" class="tarot-locked-question"></div>
-                <div class="tarot-number-grid">
-                    <label class="tarot-number-field">
-                        <span>第 1 张</span>
-                        <input id="tarotNumber1" type="number" min="1" max="78" inputmode="numeric" placeholder="1-78">
-                    </label>
-                    <label class="tarot-number-field">
-                        <span>第 2 张</span>
-                        <input id="tarotNumber2" type="number" min="1" max="78" inputmode="numeric" placeholder="1-78">
-                    </label>
-                    <label class="tarot-number-field">
-                        <span>第 3 张</span>
-                        <input id="tarotNumber3" type="number" min="1" max="78" inputmode="numeric" placeholder="1-78">
-                    </label>
-                </div>
-                <div class="tarot-actions">
-                    <button type="button" onclick="drawTarotAndRead()">确认抽牌</button>
-                    <button type="button" class="tarot-secondary-btn" onclick="shuffleTarot()">重新洗牌</button>
-                    <button type="button" class="tarot-secondary-btn" onclick="resetTarotFlow()">修改问题</button>
-                </div>
+            <div id="chatBox"></div>
+
+            <div class="input-row">
+                <textarea id="userInput" placeholder="请输入你的问题，例如：我想看八字、塔罗、风水、运势或姓名分析"></textarea>
+                <button class="send-btn" onclick="sendMessage()">发送</button>
             </div>
 
-            <div id="tarotRevealSection" class="tarot-section">
-                <div id="tarotResultSummary" class="tarot-result-summary"></div>
-                <div id="tarotCards" class="tarot-cards"></div>
-                <div class="tarot-actions">
-                    <button type="button" class="tarot-secondary-btn" onclick="resetTarotFlow()">重新开始</button>
-                </div>
-            </div>
-
-            <div id="tarotStatus" class="tarot-status">先写下本次塔罗问题，再点击“开始洗牌”。</div>
-        </div>
-
-        <div id="chatBox"></div>
-
-        <div class="input-row">
-            <textarea id="userInput" placeholder="请输入你的问题，例如：我想看八字、塔罗、风水、运势或姓名分析"></textarea>
-            <button class="send-btn" onclick="sendMessage()">发送</button>
-        </div>
-
-        <button class="small-btn" onclick="clearChat()">清空对话</button>
+            <button class="small-btn" onclick="clearChat()">清空对话</button>
+        </section>
     </div>
 
     <script>
         const skillConfigs = {
             "": {
                 placeholder: "请输入你的问题，例如：我想看八字、塔罗、择日或姓名分析",
-                hint: "通用模式：直接聊天，系统会根据你的问题自动判断是否启用技能。"
+                hint: "通用咨询：直接描述你的问题，我会尽量判断适合的方向。",
+                serviceTitle: "通用咨询",
+                serviceDesc: "还不确定该选哪类时，从这里开始。你可以先说大概情况，我会帮你归类。",
+                serviceMeta: "适合模糊问题",
+                guideTitle: "通用咨询",
+                guideText: "你可以直接描述想问的事情。如果更适合八字、塔罗、择日或姓名分析，我会引导你补充必要信息。",
+                guidePoints: ["不用一开始就选得很准", "尽量少提交敏感隐私", "玄学内容只作传统文化和自我反思参考"],
+                examples: ["我最近有点迷茫，不知道适合看什么", "我想看看事业和感情的大方向", "帮我判断这个问题适合用哪种方式分析"]
             },
             bazi: {
                 placeholder: "例如：我想看八字，重点看今年事业和财运",
-                hint: "八字分析：会按出生日期、时间、出生城市、性别、关注方向一步步收集信息，不需要详细住址。"
+                hint: "八字分析：像成熟排盘工具一样逐项收集信息，但只问必要内容。",
+                serviceTitle: "八字分析",
+                serviceDesc: "按出生日期、时间、城市、性别和关注方向，做传统命理角度的分析。",
+                serviceMeta: "适合事业、感情、整体运势",
+                guideTitle: "八字分析",
+                guideText: "我会按出生日期、时间、出生城市、性别、关注方向一步步问，不需要真实姓名和详细住址。",
+                guidePoints: ["出生地写到城市即可", "不知道具体时间可以说“不清楚”", "玄学分析只作传统文化参考"],
+                examples: ["我想看八字，重点看今年事业", "我是公历1998年5月20日出生，想看感情", "不知道出生时间，也能大概分析吗"]
             },
             tarot: {
-                placeholder: "抽牌完成后，可以在这里继续追问某张牌或某个细节",
-                hint: "塔罗：先写下问题，再洗牌，从 1-78 中选择 3 个数字，点击三张牌背翻牌后再解读。"
+                placeholder: "请写下本次塔罗问题，例如：我想看看这三个月感情会怎么发展",
+                hint: "塔罗：先在对话中写下问题，再选择系统随机抽牌或自己选牌，点击三张牌背翻牌后再解读。",
+                serviceTitle: "塔罗占卜",
+                serviceDesc: "先写下具体问题，再选择系统抽牌或自己选牌，翻开三张牌后解读。",
+                serviceMeta: "适合当下状态、关系、短期趋势",
+                guideTitle: "塔罗三张牌",
+                guideText: "直接在下方输入你想问的问题。之后可以让系统随机抽 3 张，也可以自己从 1-78 中选择 3 个数字。",
+                guidePoints: ["问题尽量具体", "可系统抽牌，也可自己选牌", "三张牌都翻开后自动解读"],
+                examples: ["我想看看这三个月感情会怎么发展", "我想问现在这份工作接下来适合继续吗", "对方现在对我的真实想法是什么"]
             },
             date_selection: {
                 placeholder: "例如：我想给搬家择日，时间大概在下个月",
-                hint: "择日：适合搬家、结婚、开业、签约等日期参考。"
+                hint: "择日：先明确事项、日期范围和避开条件，再给传统文化参考。",
+                serviceTitle: "择日",
+                serviceDesc: "用于搬家、开业、签约、结婚等事项，结合可选时间和现实限制给建议。",
+                serviceMeta: "适合选日期、排优先级",
+                guideTitle: "择日助手",
+                guideText: "我会先确认你要办什么事，再看可选时间范围、避开日期和现实限制。",
+                guidePoints: ["适合搬家、结婚、开业、签约等", "先给日期范围，不需要一次说很多信息", "不会把日期说成绝对保证"],
+                examples: ["我想给搬家择日，时间在下个月", "帮我看开业日期，最好避开周末", "我想选一个签约日，本周内都可以"]
             },
             naming: {
                 placeholder: "例如：帮我分析名字“林知夏”，看看寓意和风格",
-                hint: "姓名分析：从读音、字义、风格、寓意和实用性给建议；可以用昵称或化名，不要提交证件号码等隐私。"
+                hint: "姓名分析：先明确用途和风格，再分析读音、字义、记忆点和实用性。",
+                serviceTitle: "姓名分析",
+                serviceDesc: "分析已有名字，或按用途、风格、寓意生成备选名。",
+                serviceMeta: "适合人名、店名、品牌名、账号名",
+                guideTitle: "姓名分析",
+                guideText: "你可以分析已有名字，也可以让我按用途和风格给备选。可以使用昵称或化名。",
+                guidePoints: ["适合宝宝名、个人名、店名、公司名、账号名", "优先看好读、好记、寓意清楚", "避免证件号码等无关隐私"],
+                examples: ["帮我分析名字“林知夏”", "想给女孩起名，风格清冷古典", "帮我想 5 个适合茶饮店的名字"]
             }
         };
 
+        const TAROT_CARD_BACK = "/static/tarot/card-back.svg";
+        const SERVICE_ORDER = ["tarot", "bazi", "date_selection", "naming", ""];
+
         let activeSkillId = "";
+        let tarotFlowState = "idle";
         let tarotShuffleId = "";
         let currentTarotCards = null;
         let currentTarotQuestion = "";
         let currentTarotNumbers = [];
+        let currentTarotDrawMode = "";
+        let currentTarotMethodCard = null;
         let revealedTarotIndexes = [];
         let tarotReadingRequested = false;
 
@@ -853,17 +955,78 @@ async def index():
             }
         ];
 
+        function initialMessages() {
+            return [
+                {
+                    role: "system",
+                    content: "你是一个中文 AI 助手。请使用简体中文回答，回答要清晰、实用。"
+                }
+            ];
+        }
+
+        function resetConversation() {
+            messages = initialMessages();
+            document.getElementById("chatBox").innerHTML = "";
+            resetTarotFlowState();
+        }
+
+        function renderServiceCards() {
+            const grid = document.getElementById("serviceGrid");
+            grid.innerHTML = "";
+
+            SERVICE_ORDER.forEach(function(skillId) {
+                const config = skillConfigs[skillId] || skillConfigs[""];
+                const card = document.createElement("button");
+                card.type = "button";
+                card.className = "service-card";
+                card.addEventListener("click", function() {
+                    enterChat(skillId);
+                });
+
+                const title = document.createElement("div");
+                title.className = "service-card-title";
+                title.textContent = config.serviceTitle || config.guideTitle;
+
+                const desc = document.createElement("div");
+                desc.className = "service-card-desc";
+                desc.textContent = config.serviceDesc || config.hint;
+
+                const meta = document.createElement("div");
+                meta.className = "service-card-meta";
+                meta.textContent = config.serviceMeta || "进入对话";
+
+                card.appendChild(title);
+                card.appendChild(desc);
+                card.appendChild(meta);
+                grid.appendChild(card);
+            });
+        }
+
+        function showServiceView() {
+            document.getElementById("chatView").classList.remove("active");
+            document.getElementById("serviceView").classList.add("active");
+        }
+
+        function showChatView() {
+            document.getElementById("serviceView").classList.remove("active");
+            document.getElementById("chatView").classList.add("active");
+        }
+
+        function enterChat(skillId) {
+            setSkill(skillId);
+            resetConversation();
+            showChatView();
+            showSkillGuide(activeSkillId);
+            document.getElementById("userInput").focus();
+        }
+
         function setSkill(skillId) {
             activeSkillId = skillId || "";
 
-            document.querySelectorAll(".skill-btn").forEach(function(button) {
-                button.classList.toggle("active", button.dataset.skill === activeSkillId);
-            });
-
             const config = skillConfigs[activeSkillId] || skillConfigs[""];
             document.getElementById("userInput").placeholder = config.placeholder;
+            document.getElementById("currentSkillName").textContent = config.serviceTitle || config.guideTitle || "通用咨询";
             document.getElementById("skillHint").textContent = config.hint;
-            document.getElementById("tarotPanel").classList.toggle("active", activeSkillId === "tarot");
         }
 
         function addMessage(role, content) {
@@ -882,6 +1045,80 @@ async def index():
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
+        function addRichAssistantNode(node) {
+            const chatBox = document.getElementById("chatBox");
+
+            const div = document.createElement("div");
+            div.className = "msg assistant";
+
+            const bubble = document.createElement("div");
+            bubble.className = "bubble rich-bubble";
+            bubble.appendChild(node);
+
+            div.appendChild(bubble);
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function fillPrompt(text) {
+            const input = document.getElementById("userInput");
+            input.value = text;
+            input.focus();
+        }
+
+        function createGuideCard(config) {
+            const card = document.createElement("div");
+            card.className = "guide-card";
+
+            const title = document.createElement("div");
+            title.className = "guide-title";
+            title.textContent = config.guideTitle;
+            card.appendChild(title);
+
+            const text = document.createElement("p");
+            text.textContent = config.guideText;
+            card.appendChild(text);
+
+            const points = document.createElement("ul");
+            points.className = "guide-points";
+            config.guidePoints.forEach(function(point) {
+                const item = document.createElement("li");
+                item.textContent = point;
+                points.appendChild(item);
+            });
+            card.appendChild(points);
+
+            const chips = document.createElement("div");
+            chips.className = "prompt-chips";
+            config.examples.forEach(function(example) {
+                const chip = document.createElement("button");
+                chip.type = "button";
+                chip.className = "prompt-chip";
+                chip.textContent = example;
+                chip.addEventListener("click", function() {
+                    fillPrompt(example);
+                });
+                chips.appendChild(chip);
+            });
+            card.appendChild(chips);
+
+            return card;
+        }
+
+        function showSkillGuide(skillId) {
+            const config = skillConfigs[skillId];
+            if (!config || !config.guideTitle) {
+                return;
+            }
+
+            if (skillId === "tarot") {
+                resetTarotFlowState();
+                tarotFlowState = "waiting_question";
+            }
+
+            addRichAssistantNode(createGuideCard(config));
+        }
+
         async function sendMessage(options = {}) {
             const input = document.getElementById("userInput");
             const text = options.text || input.value.trim();
@@ -892,12 +1129,21 @@ async def index():
 
             input.value = "";
 
+            if (!options.bypassSkillFlow && activeSkillId === "tarot") {
+                const handled = await handleTarotFlowInput(text);
+                if (handled) {
+                    return;
+                }
+            }
+
             messages.push({
                 role: "user",
                 content: text
             });
 
-            addMessage("user", options.displayText || text);
+            if (options.showUser !== false) {
+                addMessage("user", options.displayText || text);
+            }
             addMessage("assistant", "思考中...");
 
             try {
@@ -942,119 +1188,192 @@ async def index():
             }
         }
 
-        function setTarotStatus(text) {
-            document.getElementById("tarotStatus").textContent = text;
-        }
-
-        function setTarotStep(step) {
-            const steps = {
-                question: ["tarotStepQuestion", "tarotQuestionSection"],
-                draw: ["tarotStepDraw", "tarotDrawSection"],
-                reveal: ["tarotStepReveal", "tarotRevealSection"]
-            };
-
-            Object.keys(steps).forEach(function(key) {
-                document.getElementById(steps[key][0]).classList.toggle("active", key === step);
-                document.getElementById(steps[key][1]).classList.toggle("active", key === step);
-            });
-        }
-
-        function parseTarotNumbers() {
-            return [1, 2, 3].map(function(index) {
-                return Number(document.getElementById("tarotNumber" + index).value.trim());
-            });
-        }
-
-        function getTarotQuestion() {
-            return document.getElementById("tarotQuestion").value.trim();
-        }
-
-        function clearTarotNumberInputs() {
-            [1, 2, 3].forEach(function(index) {
-                document.getElementById("tarotNumber" + index).value = "";
-            });
-        }
-
-        function renderTarotResultSummary() {
-            const summary = document.getElementById("tarotResultSummary");
-            if (!currentTarotCards || currentTarotCards.length === 0) {
-                summary.textContent = "";
-                return;
+        async function handleTarotFlowInput(text) {
+            if (tarotFlowState === "idle") {
+                tarotFlowState = "waiting_question";
             }
 
-            summary.textContent = "本次问题：" + currentTarotQuestion
-                + "\\n你选择了：" + currentTarotNumbers.join("、")
-                + "\\n请依次点击 3 张牌背翻牌，全部翻开后会自动开始解读。";
-        }
-
-        function renderTarotCards() {
-            const tarotCards = document.getElementById("tarotCards");
-            tarotCards.innerHTML = "";
-
-            if (!currentTarotCards || currentTarotCards.length === 0) {
-                return;
+            if (tarotFlowState === "waiting_question") {
+                addMessage("user", text);
+                await startTarotQuestion(text);
+                return true;
             }
 
-            currentTarotCards.forEach(function(item, index) {
-                const isRevealed = revealedTarotIndexes.includes(index);
-                const button = document.createElement("button");
-                button.type = "button";
-                button.className = "tarot-card-button";
-                button.disabled = isRevealed || tarotReadingRequested;
-                button.addEventListener("click", function() {
-                    flipTarotCard(index);
-                });
-
-                const imageWrap = document.createElement("div");
-                imageWrap.className = "tarot-card-image-wrap";
-
-                const image = document.createElement("img");
-                image.src = isRevealed ? item.image : "/static/tarot/card-back.svg";
-                image.alt = isRevealed ? item.card + " " + item.orientation : "塔罗牌背，点击翻牌";
-                if (isRevealed && item.orientation === "逆位") {
-                    image.className = "reversed-card-image";
+            if (tarotFlowState === "choosing_method") {
+                addMessage("user", text);
+                if (/系统|随机|自动|帮我抽|你抽/.test(text)) {
+                    await drawTarotRandom(null, false);
+                    return true;
                 }
-                imageWrap.appendChild(image);
-
-                const meta = document.createElement("div");
-                meta.className = "tarot-card-meta";
-
-                const position = document.createElement("div");
-                position.className = "tarot-card-position";
-                position.textContent = item.position + " · " + item.choice;
-
-                const name = document.createElement("div");
-                name.className = "tarot-card-name";
-                name.textContent = isRevealed ? item.card + "（" + item.orientation + "）" : "点击翻牌";
-
-                meta.appendChild(position);
-                meta.appendChild(name);
-                button.appendChild(imageWrap);
-                button.appendChild(meta);
-                tarotCards.appendChild(button);
-            });
-        }
-
-        async function shuffleTarot() {
-            setSkill("tarot");
-
-            const question = getTarotQuestion();
-            if (!question) {
-                setTarotStatus("请先写下本次塔罗问题，再点击“开始洗牌”。");
-                document.getElementById("tarotQuestion").focus();
-                return;
+                if (/自己|手动|数字|我选/.test(text)) {
+                    await startManualTarotDraw(null, false);
+                    return true;
+                }
+                addMessage("assistant", "请选择上方的“系统随机抽牌”或“我自己选牌”，也可以直接回复“系统抽牌”或“自己抽牌”。");
+                return true;
             }
 
-            setTarotStatus("正在为这个问题洗牌...");
+            if (tarotFlowState === "shuffling") {
+                addMessage("user", text);
+                addMessage("assistant", "我正在处理这次抽牌，请稍等一下。");
+                return true;
+            }
+
+            if (tarotFlowState === "waiting_numbers") {
+                addMessage("user", text);
+                const numbers = parseTarotNumbersFromText(text);
+                await drawTarotNumbers(numbers, false, null);
+                return true;
+            }
+
+            if (tarotFlowState === "waiting_reveal" || tarotFlowState === "reading") {
+                addMessage("user", text);
+                addMessage("assistant", "请先点击三张牌背完成翻牌，三张都翻开后我会自动解读。");
+                return true;
+            }
+
+            return false;
+        }
+
+        function resetTarotFlowState() {
+            tarotFlowState = "idle";
             tarotShuffleId = "";
             currentTarotCards = null;
             currentTarotQuestion = "";
             currentTarotNumbers = [];
+            currentTarotDrawMode = "";
+            currentTarotMethodCard = null;
             revealedTarotIndexes = [];
             tarotReadingRequested = false;
-            clearTarotNumberInputs();
-            renderTarotResultSummary();
-            renderTarotCards();
+        }
+
+        async function startTarotQuestion(question) {
+            resetTarotFlowState();
+            tarotFlowState = "choosing_method";
+            currentTarotQuestion = question;
+            addTarotMethodPrompt();
+        }
+
+        function disableTarotInlineCard(card) {
+            if (!card) {
+                return;
+            }
+            card.querySelectorAll("input, button").forEach(function(element) {
+                element.disabled = true;
+            });
+        }
+
+        function addTarotMethodPrompt() {
+            const card = document.createElement("div");
+            card.className = "tarot-inline-card";
+            currentTarotMethodCard = card;
+
+            const title = document.createElement("div");
+            title.className = "tarot-inline-title";
+            title.textContent = "请选择抽牌方式";
+            card.appendChild(title);
+
+            const question = document.createElement("div");
+            question.className = "tarot-inline-question";
+            question.textContent = "本次问题：" + currentTarotQuestion;
+            card.appendChild(question);
+
+            const desc = document.createElement("p");
+            desc.textContent = "系统随机抽牌会重新洗好 78 张牌并随机抽出 3 张；自己选牌会先洗牌，再让你从 1-78 中输入 3 个数字。";
+            card.appendChild(desc);
+
+            const actions = document.createElement("div");
+            actions.className = "tarot-inline-actions";
+
+            const randomButton = document.createElement("button");
+            randomButton.type = "button";
+            randomButton.textContent = "系统随机抽牌";
+            randomButton.addEventListener("click", function() {
+                drawTarotRandom(card, true);
+            });
+
+            const manualButton = document.createElement("button");
+            manualButton.type = "button";
+            manualButton.className = "tarot-secondary-btn";
+            manualButton.textContent = "我自己选牌";
+            manualButton.addEventListener("click", function() {
+                startManualTarotDraw(card, true);
+            });
+
+            const restart = document.createElement("button");
+            restart.type = "button";
+            restart.className = "tarot-secondary-btn";
+            restart.textContent = "换个问题";
+            restart.addEventListener("click", function() {
+                resetTarotFlowState();
+                tarotFlowState = "waiting_question";
+                addMessage("assistant", "好的，请在下方输入新的塔罗问题。");
+                document.getElementById("userInput").focus();
+            });
+
+            actions.appendChild(randomButton);
+            actions.appendChild(manualButton);
+            actions.appendChild(restart);
+            card.appendChild(actions);
+
+            addRichAssistantNode(card);
+        }
+
+        async function drawTarotRandom(sourceCard, showUserSelection) {
+            if (!currentTarotQuestion) {
+                tarotFlowState = "waiting_question";
+                addMessage("assistant", "请先写下本次塔罗想问的问题。");
+                return;
+            }
+
+            if (showUserSelection) {
+                addMessage("user", "系统随机抽牌");
+            }
+
+            disableTarotInlineCard(sourceCard || currentTarotMethodCard);
+            tarotFlowState = "shuffling";
+            addMessage("assistant", "正在为这个问题重新洗牌，并随机抽出 3 张牌...");
+
+            try {
+                const response = await fetch("/tarot/random-draw", {
+                    method: "POST"
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    tarotFlowState = "choosing_method";
+                    addMessage("assistant", data.error || "系统抽牌失败，请稍后再试。");
+                    return;
+                }
+
+                currentTarotCards = data.cards;
+                currentTarotNumbers = data.numbers;
+                currentTarotDrawMode = "system";
+                revealedTarotIndexes = [];
+                tarotReadingRequested = false;
+                tarotShuffleId = "";
+                tarotFlowState = "waiting_reveal";
+                addTarotRevealMessage();
+            } catch (error) {
+                tarotFlowState = "choosing_method";
+                addMessage("assistant", "系统抽牌异常：" + error);
+            }
+        }
+
+        async function startManualTarotDraw(sourceCard, showUserSelection) {
+            if (!currentTarotQuestion) {
+                tarotFlowState = "waiting_question";
+                addMessage("assistant", "请先写下本次塔罗想问的问题。");
+                return;
+            }
+
+            if (showUserSelection) {
+                addMessage("user", "我自己选牌");
+            }
+
+            disableTarotInlineCard(sourceCard || currentTarotMethodCard);
+            tarotFlowState = "shuffling";
+            addMessage("assistant", "正在为这次问题洗好 78 张牌...");
 
             try {
                 const response = await fetch("/tarot/shuffle", {
@@ -1063,56 +1382,142 @@ async def index():
                 const data = await response.json();
 
                 if (!response.ok) {
-                    setTarotStatus(data.error || "洗牌失败");
+                    tarotFlowState = "choosing_method";
+                    addMessage("assistant", data.error || "洗牌失败，请稍后再试。");
                     return;
                 }
 
                 tarotShuffleId = data.shuffle_id;
-                currentTarotQuestion = question;
-                document.getElementById("tarotLockedQuestion").textContent = "本次问题：" + currentTarotQuestion;
-                setTarotStep("draw");
-                setTarotStatus("已为这个问题洗好 78 张牌。请输入 3 个不重复数字，然后点击“确认抽牌”。");
+                currentTarotDrawMode = "manual";
+                tarotFlowState = "waiting_numbers";
+                addTarotNumberPrompt();
             } catch (error) {
-                setTarotStatus("洗牌异常：" + error);
+                tarotFlowState = "choosing_method";
+                addMessage("assistant", "洗牌异常：" + error);
             }
         }
 
-        async function drawTarotAndRead() {
-            setSkill("tarot");
+        function parseTarotNumbersFromText(text) {
+            return text
+                .split(/[,\\s，、]+/)
+                .filter(Boolean)
+                .map(function(value) {
+                    return Number(value);
+                });
+        }
 
-            const question = getTarotQuestion();
-            if (!question) {
-                setTarotStatus("请先在上方写下本次塔罗问题。");
+        function parseTarotNumbersFromCard(card) {
+            return Array.from(card.querySelectorAll("input")).map(function(input) {
+                return Number(input.value.trim());
+            });
+        }
+
+        function validateTarotNumbers(numbers) {
+            if (numbers.length !== 3 || numbers.some(function(number) { return !Number.isInteger(number); })) {
+                return "请填入 3 个 1-78 的整数。";
+            }
+            if (new Set(numbers).size !== numbers.length) {
+                return "3 个数字不能重复，请重新选择。";
+            }
+            if (numbers.some(function(number) { return number < 1 || number > 78; })) {
+                return "数字必须在 1-78 之间。";
+            }
+            return "";
+        }
+
+        function addTarotNumberPrompt() {
+            const card = document.createElement("div");
+            card.className = "tarot-inline-card";
+
+            const title = document.createElement("div");
+            title.className = "tarot-inline-title";
+            title.textContent = "已洗好牌，请选择 3 个数字";
+            card.appendChild(title);
+
+            const question = document.createElement("div");
+            question.className = "tarot-inline-question";
+            question.textContent = "本次问题：" + currentTarotQuestion;
+            card.appendChild(question);
+
+            const desc = document.createElement("p");
+            desc.textContent = "从 1-78 中选择 3 个不重复数字。你可以在这里填，也可以直接在下方输入，例如：7 24 66。";
+            card.appendChild(desc);
+
+            const grid = document.createElement("div");
+            grid.className = "tarot-number-grid inline";
+            [1, 2, 3].forEach(function(index) {
+                const label = document.createElement("label");
+                label.className = "tarot-number-field";
+
+                const span = document.createElement("span");
+                span.textContent = "第 " + index + " 张";
+
+                const input = document.createElement("input");
+                input.type = "number";
+                input.min = "1";
+                input.max = "78";
+                input.inputMode = "numeric";
+                input.placeholder = "1-78";
+
+                label.appendChild(span);
+                label.appendChild(input);
+                grid.appendChild(label);
+            });
+            card.appendChild(grid);
+
+            const actions = document.createElement("div");
+            actions.className = "tarot-inline-actions";
+
+            const confirm = document.createElement("button");
+            confirm.type = "button";
+            confirm.textContent = "确认抽牌";
+            confirm.addEventListener("click", function() {
+                const numbers = parseTarotNumbersFromCard(card);
+                drawTarotNumbers(numbers, true, card);
+            });
+
+            const restart = document.createElement("button");
+            restart.type = "button";
+            restart.className = "tarot-secondary-btn";
+            restart.textContent = "换个问题";
+            restart.addEventListener("click", function() {
+                resetTarotFlowState();
+                tarotFlowState = "waiting_question";
+                addMessage("assistant", "好的，请在下方输入新的塔罗问题。");
+                document.getElementById("userInput").focus();
+            });
+
+            actions.appendChild(confirm);
+            actions.appendChild(restart);
+            card.appendChild(actions);
+
+            addRichAssistantNode(card);
+            const firstInput = card.querySelector("input");
+            if (firstInput) {
+                firstInput.focus();
+            }
+        }
+
+        async function drawTarotNumbers(numbers, showUserSelection, sourceCard) {
+            const error = validateTarotNumbers(numbers);
+            if (error) {
+                addMessage("assistant", error);
                 return;
             }
 
             if (!tarotShuffleId) {
-                setTarotStatus("请先点击“洗牌”，让系统为这个问题打乱 78 张牌。");
+                addMessage("assistant", "这次洗牌已经失效了，请重新输入问题开始一次新的抽牌。");
+                tarotFlowState = "waiting_question";
                 return;
             }
 
-            if (question !== currentTarotQuestion) {
-                setTarotStatus("你已经修改了问题，请重新点击“洗牌”，让新的问题对应新的牌序。");
-                return;
+            if (showUserSelection) {
+                addMessage("user", "我选择：" + numbers.join("、"));
             }
 
-            const numbers = parseTarotNumbers();
-            if (numbers.length !== 3 || numbers.some(function(number) { return !Number.isInteger(number); })) {
-                setTarotStatus("请在三个输入框里分别输入 1-78 的整数。");
-                return;
-            }
+            disableTarotInlineCard(sourceCard);
 
-            if (new Set(numbers).size !== numbers.length) {
-                setTarotStatus("3 个数字不能重复，请重新选择。");
-                return;
-            }
-
-            if (numbers.some(function(number) { return number < 1 || number > 78; })) {
-                setTarotStatus("数字必须在 1-78 之间。");
-                return;
-            }
-
-            setTarotStatus("抽牌中...");
+            addMessage("assistant", "已确认你的 3 个数字，正在从洗好的牌序中抽出对应牌面...");
 
             try {
                 const response = await fetch("/tarot/draw", {
@@ -1128,38 +1533,116 @@ async def index():
                 const data = await response.json();
 
                 if (!response.ok) {
-                    setTarotStatus(data.error || "抽牌失败");
+                    addMessage("assistant", data.error || "抽牌失败");
                     return;
                 }
 
                 currentTarotCards = data.cards;
                 currentTarotNumbers = numbers;
+                currentTarotDrawMode = "manual";
                 revealedTarotIndexes = [];
                 tarotReadingRequested = false;
                 tarotShuffleId = "";
-                setTarotStep("reveal");
-                renderTarotResultSummary();
-                renderTarotCards();
-                setTarotStatus("已抽出 3 张牌。请点击牌背翻牌，三张都翻开后会自动解读。");
+                tarotFlowState = "waiting_reveal";
+                addTarotRevealMessage();
             } catch (error) {
-                setTarotStatus("抽牌异常：" + error);
+                addMessage("assistant", "抽牌异常：" + error);
             }
         }
 
-        function flipTarotCard(index) {
-            if (!currentTarotCards || revealedTarotIndexes.includes(index)) {
+        function addTarotRevealMessage() {
+            const card = document.createElement("div");
+            card.className = "tarot-inline-card";
+
+            const title = document.createElement("div");
+            title.className = "tarot-inline-title";
+            title.textContent = "请点击牌背翻牌";
+            card.appendChild(title);
+
+            const question = document.createElement("div");
+            question.className = "tarot-inline-question";
+            const drawLabel = currentTarotDrawMode === "system" ? "系统抽到：" : "你选择了：";
+            question.textContent = "本次问题：" + currentTarotQuestion + "｜" + drawLabel + currentTarotNumbers.join("、");
+            card.appendChild(question);
+
+            const desc = document.createElement("p");
+            desc.textContent = "三张牌都翻开后，我会自动开始解读。";
+            card.appendChild(desc);
+
+            const grid = document.createElement("div");
+            grid.className = "tarot-flip-grid";
+            currentTarotCards.forEach(function(item, index) {
+                grid.appendChild(createTarotFlipCard(item, index));
+            });
+            card.appendChild(grid);
+
+            addRichAssistantNode(card);
+        }
+
+        function createTarotFlipCard(item, index) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "tarot-flip-card";
+            button.addEventListener("click", function() {
+                flipTarotCard(index, button);
+            });
+
+            const inner = document.createElement("div");
+            inner.className = "tarot-flip-inner";
+
+            const back = document.createElement("div");
+            back.className = "tarot-card-face tarot-card-back";
+            const backImage = document.createElement("img");
+            backImage.src = TAROT_CARD_BACK;
+            backImage.alt = "塔罗牌背，点击翻牌";
+            back.appendChild(backImage);
+
+            const front = document.createElement("div");
+            front.className = "tarot-card-face tarot-card-front";
+            const frontImage = document.createElement("img");
+            frontImage.src = item.image;
+            frontImage.alt = item.card + " " + item.orientation;
+            if (item.orientation === "逆位") {
+                frontImage.className = "reversed-card-image";
+            }
+            front.appendChild(frontImage);
+
+            inner.appendChild(back);
+            inner.appendChild(front);
+
+            const meta = document.createElement("div");
+            meta.className = "tarot-flip-meta";
+
+            const position = document.createElement("div");
+            position.className = "tarot-flip-position";
+            position.textContent = item.position + " · " + item.choice;
+
+            const name = document.createElement("div");
+            name.className = "tarot-flip-name";
+            name.textContent = "点击翻牌";
+
+            meta.appendChild(position);
+            meta.appendChild(name);
+
+            button.appendChild(inner);
+            button.appendChild(meta);
+            return button;
+        }
+
+        function flipTarotCard(index, button) {
+            if (!currentTarotCards || revealedTarotIndexes.includes(index) || tarotReadingRequested) {
                 return;
             }
 
+            const item = currentTarotCards[index];
             revealedTarotIndexes.push(index);
-            renderTarotCards();
+            button.classList.add("flipped");
+            button.querySelector(".tarot-flip-name").textContent = item.card + "（" + item.orientation + "）";
 
             if (revealedTarotIndexes.length === currentTarotCards.length && !tarotReadingRequested) {
                 tarotReadingRequested = true;
-                setTarotStatus("三张牌已翻开，正在为你解读...");
+                tarotFlowState = "reading";
                 requestTarotReading();
-            } else {
-                setTarotStatus("已翻开 " + revealedTarotIndexes.length + " / " + currentTarotCards.length + " 张牌。");
             }
         }
 
@@ -1167,45 +1650,27 @@ async def index():
             const cardSummary = currentTarotCards.map(function(item) {
                 return item.position + "（" + item.choice + "）：" + item.card + "（" + item.orientation + "）";
             }).join("\\n");
+            const drawSummary = currentTarotDrawMode === "system"
+                ? "系统从重新洗好的 78 张牌里随机抽到：" + currentTarotNumbers.join("、")
+                : "我从洗好的 78 张牌里选择了：" + currentTarotNumbers.join("、");
             const userText = "我的塔罗问题：" + currentTarotQuestion
-                + "\\n我从洗好的 78 张牌里选择了：" + currentTarotNumbers.join("、")
+                + "\\n" + drawSummary
                 + "\\n抽牌结果：\\n" + cardSummary;
 
             await sendMessage({
                 text: userText,
-                displayText: "请解读这次塔罗抽牌：" + currentTarotQuestion,
-                tarotCards: currentTarotCards
+                showUser: false,
+                tarotCards: currentTarotCards,
+                bypassSkillFlow: true
             });
 
-            setTarotStatus("本次抽牌已完成。可以在下方继续追问，或点击“重新开始”再占一次。");
-        }
-
-        function resetTarotFlow() {
-            tarotShuffleId = "";
-            currentTarotCards = null;
-            currentTarotQuestion = "";
-            currentTarotNumbers = [];
-            revealedTarotIndexes = [];
-            tarotReadingRequested = false;
-            document.getElementById("tarotQuestion").value = "";
-            document.getElementById("tarotLockedQuestion").textContent = "";
-            clearTarotNumberInputs();
-            renderTarotResultSummary();
-            renderTarotCards();
-            setTarotStep("question");
-            setTarotStatus("先写下本次塔罗问题，再点击“开始洗牌”。");
+            tarotFlowState = "done";
         }
 
         function clearChat() {
-            messages = [
-                {
-                    role: "system",
-                    content: "你是一个中文 AI 助手。请使用简体中文回答，回答要清晰、实用。"
-                }
-            ];
-
-            document.getElementById("chatBox").innerHTML = "";
-            resetTarotFlow();
+            resetConversation();
+            showSkillGuide(activeSkillId);
+            document.getElementById("userInput").focus();
         }
 
         document.getElementById("userInput").addEventListener("keydown", function(event) {
@@ -1215,13 +1680,7 @@ async def index():
             }
         });
 
-        document.querySelectorAll(".skill-btn").forEach(function(button) {
-            button.addEventListener("click", function() {
-                setSkill(button.dataset.skill);
-            });
-        });
-
-        setSkill("");
+        renderServiceCards();
     </script>
 </body>
 </html>

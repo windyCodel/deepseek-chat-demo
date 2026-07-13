@@ -62,7 +62,9 @@ def build_skill_prompt(
     if skill["id"] == "tarot":
         if tarot_cards:
             prompt += tarot.build_tarot_context(tarot_cards)
+        elif any("抽牌结果" in (message.get("content") or "") for message in messages):
+            prompt += "\n\n当前对话里已有塔罗抽牌结果。用户后续追问时，请基于前文牌面继续解释，不要要求重新抽牌。"
         else:
-            prompt += "\n\n当前还没有抽牌结果。请引导用户先点击“洗牌”，再从 1-78 中输入 3 个不重复数字。"
+            prompt += "\n\n当前还没有抽牌结果。请引导用户先写下问题，再选择系统随机抽牌或自己从 1-78 中输入 3 个不重复数字，最后点击牌背翻牌。"
 
     return prompt
