@@ -33,7 +33,7 @@ client = OpenAI(
 )
 
 AGENT_SYSTEM_PROMPT = """
-你是一个专属玄学与传统文化分析 AI，名字叫「筮渡 AI」。
+你是一个专属玄学与传统文化分析智能助手，名字叫「筮渡智能助手」。
 
 你的定位：
 1. 你专注于传统命理、八字、紫微斗数、风水、塔罗、易经、姓名学、择日、运势分析等主题。
@@ -74,7 +74,7 @@ AGENT_SYSTEM_PROMPT = """
 
 PRIVACY_SYSTEM_PROMPT = """
 隐私与安全提醒规则：
-1. 用户输入的内容会发送给 DeepSeek API 生成回复；本站当前没有主动保存聊天记录的数据库逻辑。
+1. 用户输入的内容会发送给 DeepSeek 接口生成回复；本站当前没有主动保存聊天记录的数据库逻辑。
 2. 不要要求用户提供身份证号、手机号、详细住址、银行卡、账号密码、验证码、病历、工作单位等敏感信息。
 3. 做八字、运势、择日等分析时，出生地只需要城市级别，不需要街道、门牌号或精确住址。
 4. 做姓名分析时，可以提醒用户使用昵称、化名或只提供需要分析的名字，不要提交证件号码等无关隐私。
@@ -309,7 +309,7 @@ async def index():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>筮渡 AI - 传统文化分析助手</title>
+    <title>筮渡智能助手 - 传统文化分析助手</title>
     <style>
         * {
             box-sizing: border-box;
@@ -843,9 +843,9 @@ async def index():
 
 <body>
     <div class="container">
-        <h2>筮渡 AI - 传统文化分析助手</h2>
+        <h2>筮渡智能助手 - 传统文化分析助手</h2>
         <p class="subtitle">先选择你想进行的解答方向，我会进入对应流程一步步引导。</p>
-        <p class="privacy-notice">隐私提示：你输入的内容会发送给 DeepSeek API 用于生成回复。请勿填写身份证号、手机号、详细住址、银行卡、密码、验证码、病历等敏感信息；八字出生地写到城市即可。</p>
+        <p class="privacy-notice">隐私提示：你输入的内容会发送给 DeepSeek 接口用于生成回复。请勿填写身份证号、手机号、详细住址、银行卡、密码、验证码、病历等敏感信息；八字出生地写到城市即可。</p>
 
         <section id="serviceView" class="app-view service-view active">
             <div class="service-hero">
@@ -867,7 +867,7 @@ async def index():
             <div id="chatBox"></div>
 
             <div class="input-row">
-                <textarea id="userInput" placeholder="请输入你的问题，例如：我想看八字、塔罗、风水、运势或姓名分析"></textarea>
+                <textarea id="userInput" placeholder="请输入你的问题，例如：我想看每日运势、八字、塔罗、风水、运势或姓名分析"></textarea>
                 <button class="send-btn" onclick="sendMessage()">发送</button>
             </div>
 
@@ -878,15 +878,26 @@ async def index():
     <script>
         const skillConfigs = {
             "": {
-                placeholder: "请输入你的问题，例如：我想看八字、塔罗、择日或姓名分析",
+                placeholder: "请输入你的问题，例如：我想看每日运势、八字、塔罗、择日或姓名分析",
                 hint: "通用咨询：直接描述你的问题，我会尽量判断适合的方向。",
                 serviceTitle: "通用咨询",
                 serviceDesc: "还不确定该选哪类时，从这里开始。你可以先说大概情况，我会帮你归类。",
                 serviceMeta: "适合模糊问题",
                 guideTitle: "通用咨询",
-                guideText: "你可以直接描述想问的事情。如果更适合八字、塔罗、择日或姓名分析，我会引导你补充必要信息。",
+                guideText: "你可以直接描述想问的事情。如果更适合每日运势、八字、塔罗、择日或姓名分析，我会引导你补充必要信息。",
                 guidePoints: ["不用一开始就选得很准", "尽量少提交敏感隐私", "玄学内容只作传统文化和自我反思参考"],
                 examples: ["我最近有点迷茫，不知道适合看什么", "我想看看事业和感情的大方向", "帮我判断这个问题适合用哪种方式分析"]
+            },
+            daily_fortune: {
+                placeholder: "例如：我是天秤座，帮我看今天运势",
+                hint: "每日运势：输入星座、生肖或生日，快速生成今日参考和幸运提示。",
+                serviceTitle: "每日运势",
+                serviceDesc: "用星座、生肖或生日作为入口，快速查看今日综合、感情、事业、财运和幸运提示。",
+                serviceMeta: "适合每天打开看一眼",
+                guideTitle: "每日运势",
+                guideText: "可以直接告诉我你的星座、生肖，或输入出生日期自动识别。默认看今天，也可以问明日或本周。",
+                guidePoints: ["星座入口最轻量", "生肖入口更偏传统", "不需要出生时间和详细地址"],
+                examples: ["我是天秤座，帮我看今天运势", "属龙，今天适合做什么", "我是1998年5月20日出生，看看今日运势"]
             },
             bazi: {
                 placeholder: "例如：我想看八字，重点看今年事业和财运",
@@ -935,7 +946,7 @@ async def index():
         };
 
         const TAROT_CARD_BACK = "/static/tarot/card-back.svg";
-        const SERVICE_ORDER = ["tarot", "bazi", "date_selection", "naming", ""];
+        const SERVICE_ORDER = ["daily_fortune", "tarot", "bazi", "date_selection", "naming", ""];
 
         let activeSkillId = "";
         let tarotFlowState = "idle";
@@ -951,7 +962,7 @@ async def index():
         let messages = [
             {
                 role: "system",
-                content: "你是一个中文 AI 助手。请使用简体中文回答，回答要清晰、实用。"
+                content: "你是一个中文智能助手。请使用简体中文回答，回答要清晰、实用。"
             }
         ];
 
@@ -959,7 +970,7 @@ async def index():
             return [
                 {
                     role: "system",
-                    content: "你是一个中文 AI 助手。请使用简体中文回答，回答要清晰、实用。"
+                    content: "你是一个中文智能助手。请使用简体中文回答，回答要清晰、实用。"
                 }
             ];
         }

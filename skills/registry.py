@@ -1,7 +1,7 @@
-from . import bazi, date_selection, naming, tarot
+from . import bazi, daily_fortune, date_selection, naming, tarot
 
 
-SKILL_MODULES = [bazi, tarot, date_selection, naming]
+SKILL_MODULES = [daily_fortune, bazi, tarot, date_selection, naming]
 SKILLS = {module.SKILL["id"]: module.SKILL for module in SKILL_MODULES}
 
 
