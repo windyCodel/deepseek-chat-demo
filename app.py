@@ -60,11 +60,12 @@ AGENT_SYSTEM_PROMPT = """
 10. 当信息不足时，不要长篇解释，只需要简短说明下一步需要什么。
 
 回答方式：
-1. 普通回答要简洁，不要太长。
+1. 普通回答默认使用“重点优先”的短格式：先用 1 句话给核心结论，再给 2 到 4 个要点。
 2. 如果是在收集信息，只用一句话提问，不要使用分段标题。
 3. 不要一次输出超过 5 个要点，除非用户要求详细分析。
-4. 不要使用 Markdown 加粗标题，例如不要输出 **一、基础判断**。
-5. 只有当用户明确要求详细分析，或者信息已经收集完整后，才使用以下结构：
+4. 不要使用 Markdown 星号或加粗语法；需要突出重点时，直接使用“今日重点：”“建议：”这类中文标签。
+5. 用户没有要求详细时，不要把回答写成报告；用户要求“详细一点”“展开说”时再补充原因和细节。
+6. 只有当用户明确要求详细分析，或者信息已经收集完整后，才使用以下结构：
 一、基础判断
 二、关键影响因素
 三、可能趋势
@@ -178,9 +179,14 @@ def build_runtime_system_prompt(
     timezone_name: str | None = None,
     skill_prompt: str | None = None,
     forced_calendar_need: str | None = None,
+    user_preferences: dict[str, str] | None = None,
 ) -> str:
     calendar_need = forced_calendar_need or detect_calendar_need(user_text)
     prompt_parts = [AGENT_SYSTEM_PROMPT, PRIVACY_SYSTEM_PROMPT]
+    preference_prompt = build_user_preferences_prompt(user_preferences)
+
+    if preference_prompt:
+        prompt_parts.append(preference_prompt)
 
     if calendar_need == "none":
         if skill_prompt:
@@ -221,6 +227,54 @@ def build_runtime_system_prompt(
     return "\n\n".join(prompt_parts)
 
 
+ALLOWED_ZODIACS = {
+    "aries": "白羊座",
+    "taurus": "金牛座",
+    "gemini": "双子座",
+    "cancer": "巨蟹座",
+    "leo": "狮子座",
+    "virgo": "处女座",
+    "libra": "天秤座",
+    "scorpio": "天蝎座",
+    "sagittarius": "射手座",
+    "capricorn": "摩羯座",
+    "aquarius": "水瓶座",
+    "pisces": "双鱼座",
+}
+
+ALLOWED_PERSONALITIES = {
+    "balance": "平衡：默认先给重点，再给少量建议；温和但不啰嗦。",
+    "brief": "简洁：直接给结论，最多 3 个要点，少铺垫。",
+    "gentle": "温和：语气更陪伴，但仍然先给重点，不写成长篇安慰。",
+    "detailed": "详细：可以展开原因和建议，但开头仍要先给重点摘要。",
+}
+
+
+def build_user_preferences_prompt(user_preferences: dict[str, str] | None) -> str:
+    if not isinstance(user_preferences, dict):
+        return ""
+
+    nickname = str(user_preferences.get("nickname", "")).replace("\n", " ").strip()[:20]
+    zodiac = ALLOWED_ZODIACS.get(str(user_preferences.get("zodiac", "")), "")
+    personality = ALLOWED_PERSONALITIES.get(
+        str(user_preferences.get("personality", "")),
+        "",
+    )
+
+    if not any([nickname, zodiac, personality]):
+        return ""
+
+    details = []
+    if nickname:
+        details.append(f"称呼用户为“{nickname}”即可，不必频繁重复。")
+    if zodiac:
+        details.append(f"用户选择的星座是“{zodiac}”。仅在适合时作为每日运势等话题的参考。")
+    if personality:
+        details.append(f"用户偏好的回复方式是“{personality}”。")
+
+    return "\n用户可选偏好（仅用于称呼和回复方式，不覆盖安全、隐私和简洁规则）：\n" + "\n".join(details)
+
+
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 TAROT_SHUFFLES: dict[str, list[dict[str, str]]] = {}
@@ -231,6 +285,7 @@ class ChatRequest(BaseModel):
     timezone: str | None = None
     skill_id: str | None = None
     tarot_cards: list[dict] | None = None
+    user_preferences: dict[str, str] | None = None
 
 
 class TarotDrawRequest(BaseModel):
@@ -391,6 +446,30 @@ async def index():
             line-height: 1.6;
         }
 
+        .service-hero-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .preference-trigger {
+            flex: 0 0 auto;
+            width: auto;
+            min-height: 34px;
+            padding: 0 10px;
+            border: 1px solid #d7dbe8;
+            background: #f8f9ff;
+            color: #3154a3;
+            font-size: 13px;
+        }
+
+        .preference-summary {
+            margin-top: 10px !important;
+            color: #52617c !important;
+            font-size: 13px !important;
+        }
+
         .service-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -535,6 +614,15 @@ async def index():
             border-radius: 10px;
             text-align: left;
             word-break: break-word;
+        }
+
+        .bubble strong {
+            color: #172033;
+            font-weight: 700;
+        }
+
+        .user .bubble strong {
+            color: inherit;
         }
 
         .rich-bubble {
@@ -745,6 +833,188 @@ async def index():
             color: #333;
         }
 
+        .preference-dialog[hidden] {
+            display: none;
+        }
+
+        .preference-dialog {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            display: grid;
+            place-items: center;
+            padding: 18px;
+        }
+
+        .preference-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.58);
+        }
+
+        .preference-panel {
+            position: relative;
+            width: min(680px, 100%);
+            max-height: min(760px, calc(100vh - 36px));
+            overflow-y: auto;
+            padding: 22px;
+            border-radius: 10px;
+            background: #ffffff;
+            box-shadow: 0 22px 64px rgba(15, 23, 42, 0.26);
+        }
+
+        .preference-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 34px;
+            min-height: 34px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: #667085;
+            font-size: 24px;
+            line-height: 1;
+        }
+
+        .preference-panel h3 {
+            margin: 0 42px 6px 0;
+            color: #172033;
+            font-size: 20px;
+        }
+
+        .preference-intro,
+        .preference-privacy {
+            margin: 0;
+            color: #667085;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .preference-field {
+            display: block;
+            margin-top: 18px;
+            color: #344054;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .preference-field input {
+            display: block;
+            width: 100%;
+            margin-top: 8px;
+            padding: 10px 12px;
+            border: 1px solid #d0d5dd;
+            border-radius: 8px;
+            color: #172033;
+            font: inherit;
+            font-weight: 400;
+        }
+
+        .preference-group {
+            min-width: 0;
+            margin: 20px 0 0;
+            padding: 0;
+            border: 0;
+        }
+
+        .preference-group legend {
+            margin-bottom: 8px;
+            color: #344054;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .preference-group legend span {
+            color: #98a2b3;
+            font-size: 12px;
+            font-weight: 400;
+        }
+
+        .zodiac-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .zodiac-option {
+            display: flex;
+            min-width: 0;
+            min-height: 112px;
+            padding: 8px 6px 9px;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            border: 1px solid #d0d5dd;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #30205b;
+            font-size: 13px;
+            line-height: 1.3;
+        }
+
+        .zodiac-option:hover,
+        .zodiac-option.selected {
+            border-color: #30205b;
+            background: #ffffff;
+        }
+
+        .zodiac-emoji {
+            display: block;
+            height: 70px;
+            margin-bottom: 5px;
+            font-size: 42px;
+            line-height: 1;
+        }
+
+        .personality-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .personality-option {
+            width: auto;
+            min-height: 36px;
+            padding: 0 11px;
+            border: 1px solid #d0d5dd;
+            background: #ffffff;
+            color: #475467;
+            font-size: 13px;
+        }
+
+        .personality-option.selected {
+            border-color: #1a73e8;
+            background: #eef5ff;
+            color: #1558b0;
+        }
+
+        .preference-privacy {
+            margin-top: 18px;
+            padding: 9px 10px;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        .preference-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 18px;
+        }
+
+        .preference-actions button {
+            width: auto;
+            min-height: 40px;
+            padding: 0 14px;
+            font-size: 14px;
+        }
+
+        .preference-skip {
+            background: #eef0f4;
+            color: #475467;
+        }
+
         @media (max-width: 600px) {
             body {
                 background: white;
@@ -782,6 +1052,15 @@ async def index():
 
             .service-card {
                 min-height: 132px;
+            }
+
+            .service-hero-top {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .preference-trigger {
+                width: 100%;
             }
 
             .chat-view.active {
@@ -837,6 +1116,40 @@ async def index():
                 height: 42px;
                 margin-top: 8px;
             }
+
+            .preference-dialog {
+                align-items: end;
+                padding: 0;
+            }
+
+            .preference-panel {
+                width: 100%;
+                max-height: min(88dvh, 760px);
+                padding: 20px 14px 16px;
+                border-radius: 12px 12px 0 0;
+            }
+
+            .zodiac-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 7px;
+            }
+
+            .zodiac-option {
+                min-height: 98px;
+            }
+
+            .zodiac-emoji {
+                height: 59px;
+                font-size: 36px;
+            }
+
+            .preference-actions {
+                flex-direction: column-reverse;
+            }
+
+            .preference-actions button {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -845,12 +1158,18 @@ async def index():
     <div class="container">
         <h2>筮渡智能助手 - 传统文化分析助手</h2>
         <p class="subtitle">先选择你想进行的解答方向，我会进入对应流程一步步引导。</p>
-        <p class="privacy-notice">隐私提示：你输入的内容会发送给 DeepSeek 接口用于生成回复。请勿填写身份证号、手机号、详细住址、银行卡、密码、验证码、病历等敏感信息；八字出生地写到城市即可。</p>
+        <p class="privacy-notice">隐私提示：你输入的内容会发送给 DeepSeek 接口用于生成回复。聊天记录会保存在当前浏览器本地，方便刷新后恢复；清空对话、清理浏览器数据或更换设备后不会保留。请勿填写身份证号、手机号、详细住址、银行卡、密码、验证码、病历等敏感信息；八字出生地写到城市即可。</p>
 
         <section id="serviceView" class="app-view service-view active">
             <div class="service-hero">
-                <h3>你这次想先看什么？</h3>
-                <p>选一个方向后再进入对话。每个方向都会有自己的提问顺序，不需要一次把所有信息都写完。</p>
+                <div class="service-hero-top">
+                    <div>
+                        <h3>你这次想先看什么？</h3>
+                        <p>选一个方向后再进入对话。每个方向都会有自己的提问顺序，不需要一次把所有信息都写完。</p>
+                    </div>
+                    <button id="openPreferences" type="button" class="preference-trigger">偏好设置</button>
+                </div>
+                <p id="preferenceSummary" class="preference-summary"></p>
             </div>
             <div id="serviceGrid" class="service-grid" aria-label="解答方向"></div>
         </section>
@@ -873,6 +1192,36 @@ async def index():
 
             <button class="small-btn" onclick="clearChat()">清空对话</button>
         </section>
+
+        <div id="preferenceDialog" class="preference-dialog" hidden aria-hidden="true">
+            <div class="preference-backdrop"></div>
+            <section class="preference-panel" role="dialog" aria-modal="true" aria-labelledby="preferenceTitle">
+                <button id="closePreferences" type="button" class="preference-close" aria-label="关闭偏好设置">×</button>
+                <h3 id="preferenceTitle">先认识一下你</h3>
+                <p class="preference-intro">这些选项都可以跳过，之后也能随时修改。</p>
+
+                <label class="preference-field" for="preferenceNickname">
+                    我该怎么称呼你？
+                    <input id="preferenceNickname" type="text" maxlength="20" placeholder="昵称或化名即可">
+                </label>
+
+                <fieldset class="preference-group">
+                    <legend>你的星座 <span>可跳过</span></legend>
+                    <div id="zodiacGrid" class="zodiac-grid" aria-label="选择星座"></div>
+                </fieldset>
+
+                <fieldset class="preference-group">
+                    <legend>回复偏好 <span>可跳过</span></legend>
+                    <div id="personalityOptions" class="personality-options" aria-label="选择回复偏好"></div>
+                </fieldset>
+
+                <p class="preference-privacy">昵称、星座和回复偏好只保存在当前浏览器；在你发起聊天时，它们会随请求发送给 DeepSeek，用来调整称呼和回答方式。</p>
+                <div class="preference-actions">
+                    <button id="skipPreferences" type="button" class="preference-skip">暂时跳过</button>
+                    <button id="savePreferences" type="button">保存偏好</button>
+                </div>
+            </section>
+        </div>
     </div>
 
     <script>
@@ -947,6 +1296,28 @@ async def index():
 
         const TAROT_CARD_BACK = "/static/tarot/card-back.svg";
         const SERVICE_ORDER = ["daily_fortune", "tarot", "bazi", "date_selection", "naming", ""];
+        const SESSION_STORAGE_KEY = "shidu_ai_sessions_v1";
+        const PREFERENCE_STORAGE_KEY = "shidu_ai_preferences_v1";
+        const ZODIAC_OPTIONS = [
+            { id: "aries", name: "白羊座", emoji: "♈" },
+            { id: "taurus", name: "金牛座", emoji: "♉" },
+            { id: "gemini", name: "双子座", emoji: "♊" },
+            { id: "cancer", name: "巨蟹座", emoji: "♋" },
+            { id: "leo", name: "狮子座", emoji: "♌" },
+            { id: "virgo", name: "处女座", emoji: "♍" },
+            { id: "libra", name: "天秤座", emoji: "♎" },
+            { id: "scorpio", name: "天蝎座", emoji: "♏" },
+            { id: "sagittarius", name: "射手座", emoji: "♐" },
+            { id: "capricorn", name: "摩羯座", emoji: "♑" },
+            { id: "aquarius", name: "水瓶座", emoji: "♒" },
+            { id: "pisces", name: "双鱼座", emoji: "♓" }
+        ];
+        const PERSONALITY_OPTIONS = [
+            { id: "balance", name: "平衡" },
+            { id: "brief", name: "简洁" },
+            { id: "gentle", name: "温和" },
+            { id: "detailed", name: "详细" }
+        ];
 
         let activeSkillId = "";
         let tarotFlowState = "idle";
@@ -958,13 +1329,11 @@ async def index():
         let currentTarotMethodCard = null;
         let revealedTarotIndexes = [];
         let tarotReadingRequested = false;
+        let chatSessions = loadStoredSessions();
+        let userPreferences = loadStoredPreferences();
+        let editingPreferences = null;
 
-        let messages = [
-            {
-                role: "system",
-                content: "你是一个中文智能助手。请使用简体中文回答，回答要清晰、实用。"
-            }
-        ];
+        let messages = initialMessages();
 
         function initialMessages() {
             return [
@@ -975,10 +1344,310 @@ async def index():
             ];
         }
 
-        function resetConversation() {
+        function loadStoredSessions() {
+            try {
+                return JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) || "{}");
+            } catch (error) {
+                console.warn("无法读取本地聊天记录，已忽略旧数据。", error);
+                return {};
+            }
+        }
+
+        function saveStoredSessions() {
+            try {
+                localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(chatSessions));
+            } catch (error) {
+                console.warn("本地聊天记录保存失败。", error);
+            }
+        }
+
+        function defaultUserPreferences() {
+            return {
+                nickname: "",
+                zodiac: "",
+                personality: "",
+                setupComplete: false
+            };
+        }
+
+        function findOption(options, id) {
+            return options.find(function(option) {
+                return option.id === id;
+            }) || null;
+        }
+
+        function normalizePreferences(value) {
+            const defaults = defaultUserPreferences();
+            if (!value || typeof value !== "object") {
+                return defaults;
+            }
+
+            const nickname = typeof value.nickname === "string" ? value.nickname.trim().slice(0, 20) : "";
+            const zodiac = findOption(ZODIAC_OPTIONS, value.zodiac) ? value.zodiac : "";
+            const personality = findOption(PERSONALITY_OPTIONS, value.personality) ? value.personality : "";
+
+            return {
+                nickname: nickname,
+                zodiac: zodiac,
+                personality: personality,
+                setupComplete: Boolean(value.setupComplete)
+            };
+        }
+
+        function loadStoredPreferences() {
+            try {
+                return normalizePreferences(JSON.parse(localStorage.getItem(PREFERENCE_STORAGE_KEY) || "{}"));
+            } catch (error) {
+                console.warn("无法读取本地偏好，已使用空白偏好。", error);
+                return defaultUserPreferences();
+            }
+        }
+
+        function saveStoredPreferences() {
+            try {
+                localStorage.setItem(PREFERENCE_STORAGE_KEY, JSON.stringify(userPreferences));
+            } catch (error) {
+                console.warn("本地偏好保存失败。", error);
+            }
+        }
+
+        function getZodiacName(id) {
+            const option = findOption(ZODIAC_OPTIONS, id);
+            return option ? option.name : "";
+        }
+
+        function getPersonalityName(id) {
+            const option = findOption(PERSONALITY_OPTIONS, id);
+            return option ? option.name : "";
+        }
+
+        function getChatPreferences() {
+            return {
+                nickname: userPreferences.nickname,
+                zodiac: userPreferences.zodiac,
+                personality: userPreferences.personality
+            };
+        }
+
+        function renderPreferenceSummary() {
+            const summary = document.getElementById("preferenceSummary");
+            const details = [];
+            if (userPreferences.nickname) {
+                details.push("称呼：" + userPreferences.nickname);
+            }
+            if (getZodiacName(userPreferences.zodiac)) {
+                details.push("星座：" + getZodiacName(userPreferences.zodiac));
+            }
+            if (getPersonalityName(userPreferences.personality)) {
+                details.push("回复：" + getPersonalityName(userPreferences.personality));
+            }
+            summary.textContent = details.length ? "已设置 " + details.join(" · ") : "可选：设置称呼、星座和回复偏好，让对话更贴近你。";
+        }
+
+        function renderZodiacOptions() {
+            const grid = document.getElementById("zodiacGrid");
+            grid.innerHTML = "";
+
+            ZODIAC_OPTIONS.forEach(function(option) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "zodiac-option" + (editingPreferences.zodiac === option.id ? " selected" : "");
+                button.setAttribute("aria-pressed", String(editingPreferences.zodiac === option.id));
+
+                const emoji = document.createElement("span");
+                emoji.className = "zodiac-emoji";
+                emoji.setAttribute("aria-hidden", "true");
+                emoji.textContent = option.emoji;
+
+                const label = document.createElement("span");
+                label.textContent = option.name;
+
+                button.appendChild(emoji);
+                button.appendChild(label);
+                button.addEventListener("click", function() {
+                    editingPreferences.zodiac = editingPreferences.zodiac === option.id ? "" : option.id;
+                    renderZodiacOptions();
+                });
+                grid.appendChild(button);
+            });
+        }
+
+        function renderPersonalityOptions() {
+            const container = document.getElementById("personalityOptions");
+            container.innerHTML = "";
+
+            PERSONALITY_OPTIONS.forEach(function(option) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "personality-option" + (editingPreferences.personality === option.id ? " selected" : "");
+                button.setAttribute("aria-pressed", String(editingPreferences.personality === option.id));
+                button.textContent = option.name;
+                button.addEventListener("click", function() {
+                    editingPreferences.personality = editingPreferences.personality === option.id ? "" : option.id;
+                    renderPersonalityOptions();
+                });
+                container.appendChild(button);
+            });
+        }
+
+        function openPreferences() {
+            editingPreferences = Object.assign({}, userPreferences);
+            document.getElementById("preferenceNickname").value = editingPreferences.nickname;
+            renderZodiacOptions();
+            renderPersonalityOptions();
+            const dialog = document.getElementById("preferenceDialog");
+            dialog.hidden = false;
+            dialog.setAttribute("aria-hidden", "false");
+            document.getElementById("preferenceNickname").focus();
+        }
+
+        function closePreferences() {
+            const dialog = document.getElementById("preferenceDialog");
+            dialog.hidden = true;
+            dialog.setAttribute("aria-hidden", "true");
+            editingPreferences = null;
+        }
+
+        function savePreferences() {
+            if (!editingPreferences) {
+                return;
+            }
+
+            editingPreferences.nickname = document.getElementById("preferenceNickname").value.trim().slice(0, 20);
+            editingPreferences.setupComplete = true;
+            userPreferences = normalizePreferences(editingPreferences);
+            userPreferences.setupComplete = true;
+            saveStoredPreferences();
+            renderPreferenceSummary();
+            closePreferences();
+        }
+
+        function skipPreferences() {
+            userPreferences.setupComplete = true;
+            saveStoredPreferences();
+            renderPreferenceSummary();
+            closePreferences();
+        }
+
+        function cloneMessages(value) {
+            if (!Array.isArray(value)) {
+                return initialMessages();
+            }
+            return value.map(function(message) {
+                return {
+                    role: message.role,
+                    content: message.content
+                };
+            });
+        }
+
+        function getTarotState() {
+            return {
+                tarotFlowState: tarotFlowState,
+                tarotShuffleId: tarotShuffleId,
+                currentTarotCards: currentTarotCards,
+                currentTarotQuestion: currentTarotQuestion,
+                currentTarotNumbers: currentTarotNumbers,
+                currentTarotDrawMode: currentTarotDrawMode,
+                revealedTarotIndexes: revealedTarotIndexes,
+                tarotReadingRequested: tarotReadingRequested
+            };
+        }
+
+        function restoreTarotState(state) {
+            resetTarotFlowState();
+            if (!state) {
+                return;
+            }
+
+            tarotFlowState = state.tarotFlowState || "idle";
+            tarotShuffleId = state.tarotShuffleId || "";
+            currentTarotCards = state.currentTarotCards || null;
+            currentTarotQuestion = state.currentTarotQuestion || "";
+            currentTarotNumbers = Array.isArray(state.currentTarotNumbers) ? state.currentTarotNumbers : [];
+            currentTarotDrawMode = state.currentTarotDrawMode || "";
+            currentTarotMethodCard = null;
+            revealedTarotIndexes = Array.isArray(state.revealedTarotIndexes) ? state.revealedTarotIndexes : [];
+            tarotReadingRequested = Boolean(state.tarotReadingRequested);
+        }
+
+        function persistCurrentSession() {
+            const skillId = activeSkillId || "";
+            const chatBox = document.getElementById("chatBox");
+            const input = document.getElementById("userInput");
+
+            chatSessions[skillId] = {
+                messages: cloneMessages(messages),
+                chatHtml: chatBox ? chatBox.innerHTML : "",
+                inputValue: input ? input.value : "",
+                tarotState: getTarotState(),
+                updatedAt: new Date().toISOString()
+            };
+            saveStoredSessions();
+        }
+
+        function rehydrateChatInteractions() {
+            document.querySelectorAll(".prompt-chip").forEach(function(chip) {
+                chip.addEventListener("click", function() {
+                    fillPrompt(chip.textContent);
+                });
+            });
+
+            document.querySelectorAll(".tarot-inline-actions button").forEach(function(button) {
+                button.addEventListener("click", function() {
+                    const card = button.closest(".tarot-inline-card");
+                    const label = button.textContent.trim();
+                    if (label === "系统随机抽牌") {
+                        drawTarotRandom(card, true);
+                    } else if (label === "我自己选牌") {
+                        startManualTarotDraw(card, true);
+                    } else if (label === "确认抽牌") {
+                        drawTarotNumbers(parseTarotNumbersFromCard(card), true, card);
+                    } else if (label === "换个问题") {
+                        resetTarotFlowState();
+                        tarotFlowState = "waiting_question";
+                        addMessage("assistant", "好的，请在下方输入新的塔罗问题。");
+                        document.getElementById("userInput").focus();
+                    }
+                });
+            });
+
+            document.querySelectorAll(".tarot-flip-card").forEach(function(button) {
+                button.addEventListener("click", function() {
+                    flipTarotCard(Number(button.dataset.tarotIndex), button);
+                });
+            });
+
+        }
+
+        function resetConversation(options = {}) {
             messages = initialMessages();
             document.getElementById("chatBox").innerHTML = "";
+            document.getElementById("userInput").value = "";
             resetTarotFlowState();
+
+            if (options.persist !== false) {
+                persistCurrentSession();
+            }
+        }
+
+        function restoreConversation(skillId) {
+            const session = chatSessions[skillId || ""];
+            const chatBox = document.getElementById("chatBox");
+            const input = document.getElementById("userInput");
+
+            if (!session) {
+                resetConversation({ persist: false });
+                return false;
+            }
+
+            messages = cloneMessages(session.messages);
+            chatBox.innerHTML = session.chatHtml || "";
+            input.value = session.inputValue || "";
+            restoreTarotState(session.tarotState);
+            rehydrateChatInteractions();
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return Boolean(session.chatHtml);
         }
 
         function renderServiceCards() {
@@ -1014,6 +1683,7 @@ async def index():
         }
 
         function showServiceView() {
+            persistCurrentSession();
             document.getElementById("chatView").classList.remove("active");
             document.getElementById("serviceView").classList.add("active");
         }
@@ -1024,10 +1694,13 @@ async def index():
         }
 
         function enterChat(skillId) {
+            persistCurrentSession();
             setSkill(skillId);
-            resetConversation();
+            const hadSession = restoreConversation(activeSkillId);
             showChatView();
-            showSkillGuide(activeSkillId);
+            if (!hadSession) {
+                showSkillGuide(activeSkillId);
+            }
             document.getElementById("userInput").focus();
         }
 
@@ -1048,12 +1721,32 @@ async def index():
 
             const bubble = document.createElement("div");
             bubble.className = "bubble";
-            bubble.textContent = content;
+            if (role === "assistant") {
+                bubble.innerHTML = renderAssistantText(content);
+            } else {
+                bubble.textContent = content;
+            }
 
             div.appendChild(bubble);
             chatBox.appendChild(div);
 
             chatBox.scrollTop = chatBox.scrollHeight;
+            persistCurrentSession();
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function renderAssistantText(content) {
+            return escapeHtml(content)
+                .replace(/\\*\\*([^*\\n][^*\\n]*?)\\*\\*/g, "$1")
+                .replace(/(^|\\n)([^\\n：:]{1,12}[：:])/g, "$1<strong>$2</strong>");
         }
 
         function addRichAssistantNode(node) {
@@ -1069,12 +1762,14 @@ async def index():
             div.appendChild(bubble);
             chatBox.appendChild(div);
             chatBox.scrollTop = chatBox.scrollHeight;
+            persistCurrentSession();
         }
 
         function fillPrompt(text) {
             const input = document.getElementById("userInput");
             input.value = text;
             input.focus();
+            persistCurrentSession();
         }
 
         function createGuideCard(config) {
@@ -1128,6 +1823,7 @@ async def index():
             }
 
             addRichAssistantNode(createGuideCard(config));
+
         }
 
         async function sendMessage(options = {}) {
@@ -1167,7 +1863,8 @@ async def index():
                         messages: messages,
                         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                         skill_id: activeSkillId || null,
-                        tarot_cards: options.tarotCards || null
+                        tarot_cards: options.tarotCards || null,
+                        user_preferences: getChatPreferences()
                     })
                 });
 
@@ -1594,6 +2291,7 @@ async def index():
             const button = document.createElement("button");
             button.type = "button";
             button.className = "tarot-flip-card";
+            button.dataset.tarotIndex = String(index);
             button.addEventListener("click", function() {
                 flipTarotCard(index, button);
             });
@@ -1649,10 +2347,12 @@ async def index():
             revealedTarotIndexes.push(index);
             button.classList.add("flipped");
             button.querySelector(".tarot-flip-name").textContent = item.card + "（" + item.orientation + "）";
+            persistCurrentSession();
 
             if (revealedTarotIndexes.length === currentTarotCards.length && !tarotReadingRequested) {
                 tarotReadingRequested = true;
                 tarotFlowState = "reading";
+                persistCurrentSession();
                 requestTarotReading();
             }
         }
@@ -1676,6 +2376,7 @@ async def index():
             });
 
             tarotFlowState = "done";
+            persistCurrentSession();
         }
 
         function clearChat() {
@@ -1683,6 +2384,10 @@ async def index():
             showSkillGuide(activeSkillId);
             document.getElementById("userInput").focus();
         }
+
+        document.getElementById("userInput").addEventListener("input", function() {
+            persistCurrentSession();
+        });
 
         document.getElementById("userInput").addEventListener("keydown", function(event) {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -1692,6 +2397,17 @@ async def index():
         });
 
         renderServiceCards();
+        renderPreferenceSummary();
+
+        document.getElementById("openPreferences").addEventListener("click", openPreferences);
+        document.getElementById("closePreferences").addEventListener("click", closePreferences);
+        document.querySelector(".preference-backdrop").addEventListener("click", closePreferences);
+        document.getElementById("savePreferences").addEventListener("click", savePreferences);
+        document.getElementById("skipPreferences").addEventListener("click", skipPreferences);
+
+        if (!userPreferences.setupComplete) {
+            openPreferences();
+        }
     </script>
 </body>
 </html>
@@ -1724,6 +2440,7 @@ async def chat(req: ChatRequest):
             req.timezone,
             skill_prompt,
             forced_calendar_need,
+            req.user_preferences,
         )
 
         final_messages = [
