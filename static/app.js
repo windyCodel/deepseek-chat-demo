@@ -436,6 +436,97 @@ const skillConfigs = {
 
         }
 
+        function refreshRestoredGuideCard(skillId) {
+            const chatBox = document.getElementById("chatBox");
+            const guideCard = chatBox.querySelector(".guide-card");
+            if (!guideCard) {
+                return;
+            }
+
+            guideCard.replaceWith(createGuideCard(getSkillConfig(skillId), skillId));
+        }
+
+        function setHistoricalAnswerExpanded(message, expanded) {
+            const toggle = message.querySelector(".history-answer-toggle");
+            message.classList.toggle("history-answer-collapsed", !expanded);
+            if (toggle) {
+                toggle.textContent = expanded ? "收起历史回答" : "展开完整回答";
+                toggle.setAttribute("aria-expanded", String(expanded));
+            }
+        }
+
+        function refreshHistoricalAnswers() {
+            const chatBox = document.getElementById("chatBox");
+            const assistantMessages = Array.from(
+                chatBox.querySelectorAll(".msg.assistant:not(.thinking-message)")
+            );
+            const latestAssistantMessage = assistantMessages.length
+                ? assistantMessages[assistantMessages.length - 1]
+                : null;
+
+            assistantMessages.forEach(function(message) {
+                message.classList.remove("history-answer", "history-answer-collapsed");
+                message.querySelectorAll(".history-answer-toggle").forEach(function(toggle) {
+                    toggle.remove();
+                });
+
+                const answer = message.querySelector(".assistant-text");
+                const isLongAnswer = answer && answer.textContent.trim().length > 260;
+                if (!isLongAnswer || message === latestAssistantMessage) {
+                    return;
+                }
+
+                message.classList.add("history-answer");
+                const toggle = document.createElement("button");
+                toggle.type = "button";
+                toggle.className = "history-answer-toggle";
+                toggle.addEventListener("click", function() {
+                    const expanded = toggle.getAttribute("aria-expanded") === "true";
+                    setHistoricalAnswerExpanded(message, !expanded);
+                    persistCurrentSession();
+                });
+                message.querySelector(".message-main").appendChild(toggle);
+                setHistoricalAnswerExpanded(message, false);
+            });
+        }
+
+        function scrollMessageToTop(message, behavior = "auto") {
+            if (!message) {
+                return;
+            }
+
+            const chatBox = document.getElementById("chatBox");
+            window.requestAnimationFrame(function() {
+                const targetTop = message.getBoundingClientRect().top
+                    - chatBox.getBoundingClientRect().top
+                    + chatBox.scrollTop
+                    - 8;
+                chatBox.scrollTo({
+                    top: Math.max(0, targetTop),
+                    behavior: behavior
+                });
+            });
+        }
+
+        function updateUserInputPlaceholder() {
+            const input = document.getElementById("userInput");
+            const config = getSkillConfig(activeSkillId);
+            if (activeSkillId !== "tarot") {
+                input.placeholder = config.placeholder;
+                return;
+            }
+
+            if (tarotFlowState === "waiting_numbers") {
+                input.placeholder = "从 1-78 中输入 3 个不重复数字，例如：7、24、66";
+            } else if (tarotFlowState === "waiting_reveal" || tarotFlowState === "reading") {
+                input.placeholder = "请先点击三张牌完成翻牌";
+            } else if (tarotFlowState === "done") {
+                input.placeholder = "可以继续追问某张牌或整体建议，也可以输入新的塔罗问题";
+            } else {
+                input.placeholder = config.placeholder;
+            }
+        }
+
         function resetConversation(options = {}) {
             messages = initialMessages();
             document.getElementById("chatBox").innerHTML = "";
@@ -462,7 +553,20 @@ const skillConfigs = {
             input.value = session.inputValue || "";
             restoreTarotState(session.tarotState);
             rehydrateChatInteractions();
-            chatBox.scrollTop = chatBox.scrollHeight;
+            refreshRestoredGuideCard(skillId || "");
+            refreshHistoricalAnswers();
+            updateUserInputPlaceholder();
+
+            const visibleMessages = Array.from(
+                chatBox.querySelectorAll(".msg:not(.history-answer-collapsed):not(.thinking-message)")
+            );
+            const latestAssistantMessage = visibleMessages.slice().reverse().find(function(message) {
+                return message.classList.contains("assistant");
+            });
+            const restoreTarget = latestAssistantMessage
+                || (visibleMessages.length ? visibleMessages[visibleMessages.length - 1] : null);
+            scrollMessageToTop(restoreTarget);
+            persistCurrentSession();
             return Boolean(session.chatHtml);
         }
 
@@ -556,8 +660,7 @@ const skillConfigs = {
         function setSkill(skillId) {
             activeSkillId = skillId || "";
 
-            const config = getSkillConfig(activeSkillId);
-            document.getElementById("userInput").placeholder = config.placeholder;
+            updateUserInputPlaceholder();
             document.getElementById("skillHint").textContent = "正在对话";
         }
 
@@ -608,8 +711,12 @@ const skillConfigs = {
             }
 
             shell.chatBox.appendChild(shell.message);
-
-            shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
+            refreshHistoricalAnswers();
+            if (role === "assistant" && String(content).trim().length > 260) {
+                scrollMessageToTop(shell.message, "smooth");
+            } else {
+                shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
+            }
             persistCurrentSession();
         }
 
@@ -682,6 +789,7 @@ const skillConfigs = {
             shell.bubble.classList.add("rich-bubble");
             shell.bubble.appendChild(node);
             shell.chatBox.appendChild(shell.message);
+            refreshHistoricalAnswers();
             shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
             persistCurrentSession();
         }
@@ -1316,6 +1424,7 @@ const skillConfigs = {
             });
 
             tarotFlowState = "done";
+            updateUserInputPlaceholder();
             persistCurrentSession();
         }
 
