@@ -1302,7 +1302,7 @@ async def index():
                         <h3>你这次想先看什么？</h3>
                         <p>选一个方向后再进入对话。每个方向都会有自己的提问顺序，不需要一次把所有信息都写完。</p>
                     </div>
-                    <button id="openPreferences" type="button" class="preference-trigger">偏好设置</button>
+                    <button id="openPreferences" type="button" class="preference-trigger" onclick="openPreferences()">偏好设置</button>
                 </div>
                 <p id="preferenceSummary" class="preference-summary"></p>
             </div>
@@ -1859,6 +1859,39 @@ async def index():
                 card.appendChild(title);
                 card.appendChild(desc);
                 card.appendChild(meta);
+                grid.appendChild(card);
+            });
+        }
+
+        function renderServiceFallback() {
+            const grid = document.getElementById("serviceGrid");
+            const fallbackServices = [
+                ["daily_fortune", "每日运势", "看看今日、明日或本周的节奏与提示。"],
+                ["tarot", "塔罗占卜", "先写下问题，再抽三张牌进行解读。"],
+                ["bazi", "八字分析", "围绕出生信息和关注方向逐步分析。"],
+                ["date_selection", "择日", "为搬家、开业、签约等事项梳理时间。"],
+                ["naming", "姓名分析", "分析已有名字，或一起寻找合适的名字。"],
+                ["", "通用咨询", "还不确定方向时，从这里开始聊聊。"]
+            ];
+            grid.innerHTML = "";
+
+            fallbackServices.forEach(function(service) {
+                const card = document.createElement("button");
+                card.type = "button";
+                card.className = "service-card";
+                card.addEventListener("click", function() {
+                    enterChat(service[0]);
+                });
+
+                const title = document.createElement("div");
+                title.className = "service-card-title";
+                title.textContent = service[1];
+                const desc = document.createElement("div");
+                desc.className = "service-card-desc";
+                desc.textContent = service[2];
+
+                card.appendChild(title);
+                card.appendChild(desc);
                 grid.appendChild(card);
             });
         }
@@ -2648,18 +2681,31 @@ async def index():
             }
         });
 
-        renderServiceCards();
-        renderPreferenceSummary();
+        function initializeApp() {
+            try {
+                renderServiceCards();
+            } catch (error) {
+                console.error("服务入口渲染失败，已使用备用入口。", error);
+                renderServiceFallback();
+            }
 
-        document.getElementById("openPreferences").addEventListener("click", openPreferences);
-        document.getElementById("closePreferences").addEventListener("click", closePreferences);
-        document.querySelector(".preference-backdrop").addEventListener("click", closePreferences);
-        document.getElementById("savePreferences").addEventListener("click", savePreferences);
-        document.getElementById("skipPreferences").addEventListener("click", skipPreferences);
+            try {
+                renderPreferenceSummary();
+            } catch (error) {
+                console.error("偏好摘要渲染失败。", error);
+            }
 
-        if (!userPreferences.setupComplete) {
-            openPreferences();
+            document.getElementById("closePreferences").addEventListener("click", closePreferences);
+            document.querySelector(".preference-backdrop").addEventListener("click", closePreferences);
+            document.getElementById("savePreferences").addEventListener("click", savePreferences);
+            document.getElementById("skipPreferences").addEventListener("click", skipPreferences);
+
+            if (!userPreferences.setupComplete) {
+                openPreferences();
+            }
         }
+
+        initializeApp();
     </script>
 </body>
 </html>
