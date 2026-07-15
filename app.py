@@ -427,6 +427,8 @@ async def index():
         .chat-view.active {
             display: flex;
             flex-direction: column;
+            height: min(680px, calc(100vh - 150px));
+            min-height: 520px;
         }
 
         .service-hero {
@@ -515,41 +517,77 @@ async def index():
 
         .chat-header {
             display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            margin-bottom: 12px;
-            padding: 10px 12px;
-            border: 1px solid #e6e7ee;
-            border-radius: 10px;
-            background: #fbfbfd;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            padding: 4px 0 12px;
+            border-bottom: 1px solid #eceaf2;
         }
 
         .back-btn {
-            width: auto;
+            flex: 0 0 36px;
+            width: 36px;
             min-height: 36px;
-            padding: 0 12px;
-            background: #eeeeee;
-            color: #333;
-            font-size: 14px;
+            padding: 0;
+            border: 1px solid #e3e0eb;
+            border-radius: 50%;
+            background: #ffffff;
+            color: #4a4361;
+            font-size: 22px;
+            line-height: 1;
         }
 
-        .current-skill {
+        .chat-assistant {
+            display: flex;
+            align-items: center;
+            gap: 9px;
             min-width: 0;
             flex: 1;
         }
 
-        .current-skill-name {
-            color: #222;
+        .chat-header-avatar,
+        .assistant-avatar {
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+            border-radius: 50%;
+            background: #4f46a5;
+            color: #ffffff;
+            font-family: "Microsoft YaHei", sans-serif;
+            font-weight: 700;
+        }
+
+        .chat-header-avatar {
+            width: 36px;
+            height: 36px;
+            font-size: 15px;
+        }
+
+        .chat-assistant-name {
+            color: #29243a;
             font-size: 15px;
             font-weight: 700;
             line-height: 1.4;
         }
 
-        .skill-hint {
-            margin-top: 8px;
-            color: #777;
-            font-size: 13px;
-            line-height: 1.5;
+        .chat-status {
+            margin-top: 1px;
+            color: #7b7590;
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .clear-chat-btn {
+            flex: 0 0 36px;
+            width: 36px;
+            min-height: 36px;
+            padding: 0;
+            border: 1px solid transparent;
+            border-radius: 50%;
+            background: transparent;
+            color: #6f6980;
+            font-size: 20px;
+            line-height: 1;
         }
 
         .tarot-secondary-btn {
@@ -579,70 +617,124 @@ async def index():
         }
 
         #chatBox {
-            height: 480px;
-            max-height: calc(100vh - 220px);
-            min-height: 320px;
+            flex: 1;
+            min-height: 0;
             overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 12px;
-            background: #fafafa;
-            margin-bottom: 12px;
+            padding: 8px 2px 14px;
         }
 
         .msg {
-            margin: 10px 0;
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            margin: 14px 0;
             line-height: 1.6;
-            white-space: pre-wrap;
             overflow-wrap: anywhere;
         }
 
         .user {
-            text-align: right;
-            color: #1a73e8;
+            justify-content: flex-end;
+            color: #ffffff;
         }
 
         .assistant {
-            text-align: left;
             color: #222;
+        }
+
+        .message-main {
+            min-width: 0;
+            max-width: min(85%, 620px);
+        }
+
+        .user .message-main {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .assistant-avatar {
+            width: 30px;
+            height: 30px;
+            margin-bottom: 1px;
+            font-size: 12px;
+        }
+
+        .msg.grouped .assistant-avatar {
+            visibility: hidden;
+        }
+
+        .message-sender {
+            margin: 0 0 4px 2px;
+            color: #7a748b;
+            font-size: 12px;
+            line-height: 1.3;
+        }
+
+        .msg.grouped .message-sender {
+            display: none;
         }
 
         .bubble {
             display: inline-block;
-            max-width: 85%;
-            padding: 10px 12px;
-            border-radius: 10px;
+            max-width: 100%;
+            padding: 10px 13px;
+            border-radius: 14px;
             text-align: left;
             word-break: break-word;
         }
 
-        .bubble strong {
-            color: #172033;
-            font-weight: 700;
-        }
-
-        .user .bubble strong {
-            color: inherit;
-        }
-
         .rich-bubble {
-            width: min(620px, 100%);
-            max-width: 100%;
-            background: white;
-            border: 1px solid #e5e0ef;
-            box-shadow: 0 4px 14px rgba(30, 20, 60, 0.06);
+            display: block;
+            width: 100%;
         }
 
         .user .bubble {
-            background: #e8f0fe;
+            background: #4f46a5;
+            border-bottom-right-radius: 4px;
         }
 
         .assistant .bubble {
-            background: #eeeeee;
+            background: #f7f6fa;
+            border: 1px solid #e7e4ee;
+            border-bottom-left-radius: 4px;
+            color: #302d3b;
         }
 
         .assistant .rich-bubble {
             background: white;
+        }
+
+        .assistant-text p {
+            margin: 0 0 10px;
+        }
+
+        .assistant-text p:last-child {
+            margin-bottom: 0;
+        }
+
+        .assistant-text strong {
+            color: #28233a;
+            font-weight: 700;
+        }
+
+        .assistant-heading {
+            margin: 2px 0 8px;
+            color: #2b2540;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.45;
+        }
+
+        .assistant-list {
+            margin: 4px 0 10px;
+            padding-left: 20px;
+        }
+
+        .assistant-list:last-child {
+            margin-bottom: 0;
+        }
+
+        .assistant-list li + li {
+            margin-top: 4px;
         }
 
         .guide-card,
@@ -652,23 +744,20 @@ async def index():
             line-height: 1.6;
         }
 
-        .guide-title,
         .tarot-inline-title {
             margin-bottom: 6px;
             font-size: 15px;
             font-weight: 700;
         }
 
-        .guide-card p,
         .tarot-inline-card p {
             margin: 6px 0;
             color: #555;
         }
 
-        .guide-points {
-            margin: 8px 0;
-            padding-left: 18px;
-            color: #555;
+        .guide-card p {
+            margin: 0;
+            color: #4c465b;
         }
 
         .prompt-chips {
@@ -794,20 +883,27 @@ async def index():
 
         .input-row {
             display: flex;
+            align-items: flex-end;
             gap: 8px;
+            padding: 8px;
+            border: 1px solid #dedbe8;
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 6px 20px rgba(38, 29, 72, 0.08);
         }
 
         #userInput {
             flex: 1;
-            height: 70px;
+            height: 48px;
             min-width: 0;
             width: 100%;
-            padding: 10px;
+            padding: 12px 10px;
             font-size: 15px;
             line-height: 1.5;
             resize: none;
-            border: 1px solid #ddd;
-            border-radius: 8px;
+            border: 0;
+            border-radius: 10px;
+            outline: none;
         }
 
         button {
@@ -822,15 +918,47 @@ async def index():
         }
 
         .send-btn {
-            flex: 0 0 100px;
+            flex: 0 0 70px;
+            min-height: 48px;
+            border-radius: 11px;
+            background: #4f46a5;
+            font-size: 14px;
+            font-weight: 700;
         }
 
-        .small-btn {
-            width: 100px;
-            height: 36px;
-            margin-top: 10px;
-            background: #eeeeee;
-            color: #333;
+        .thinking-bubble {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            min-height: 40px;
+            color: #716b80;
+            font-size: 13px;
+        }
+
+        .thinking-dots {
+            display: inline-flex;
+            gap: 3px;
+        }
+
+        .thinking-dots span {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #7569b5;
+            animation: thinking-bounce 1s infinite ease-in-out;
+        }
+
+        .thinking-dots span:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .thinking-dots span:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        @keyframes thinking-bounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+            30% { transform: translateY(-3px); opacity: 1; }
         }
 
         .preference-dialog[hidden] {
@@ -887,6 +1015,13 @@ async def index():
         .preference-privacy {
             margin: 0;
             color: #667085;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .preference-current-selection {
+            margin: 16px 0 0;
+            color: #52617c;
             font-size: 13px;
             line-height: 1.6;
         }
@@ -1066,16 +1201,16 @@ async def index():
             .chat-view.active {
                 flex: 1;
                 min-height: 0;
+                height: auto;
             }
 
             .chat-header {
-                align-items: stretch;
-                flex-direction: column;
-                gap: 8px;
+                align-items: center;
             }
 
             .back-btn {
-                width: 100%;
+                flex-basis: 36px;
+                width: 36px;
             }
 
             #chatBox {
@@ -1089,8 +1224,13 @@ async def index():
                 max-width: 92%;
             }
 
+            .message-main {
+                max-width: calc(100% - 38px);
+            }
+
             .input-row {
-                flex-direction: column;
+                gap: 6px;
+                padding: 6px;
             }
 
             .tarot-number-grid,
@@ -1103,18 +1243,13 @@ async def index():
             }
 
             #userInput {
-                height: 88px;
+                height: 48px;
                 font-size: 16px;
             }
 
-            .input-row button,
-            .small-btn {
-                width: 100%;
-            }
-
-            .small-btn {
-                height: 42px;
-                margin-top: 8px;
+            .send-btn {
+                flex-basis: 62px;
+                min-height: 48px;
             }
 
             .preference-dialog {
@@ -1176,11 +1311,15 @@ async def index():
 
         <section id="chatView" class="app-view chat-view">
             <div class="chat-header">
-                <button type="button" class="back-btn" onclick="showServiceView()">返回选择</button>
-                <div class="current-skill">
-                    <div id="currentSkillName" class="current-skill-name"></div>
-                    <div id="skillHint" class="skill-hint"></div>
+                <button type="button" class="back-btn" onclick="showServiceView()" aria-label="返回解答选择" title="返回解答选择">‹</button>
+                <div class="chat-assistant">
+                    <div class="chat-header-avatar" aria-hidden="true">筮</div>
+                    <div>
+                        <div class="chat-assistant-name">筮渡 AI</div>
+                        <div id="skillHint" class="chat-status">正在对话</div>
+                    </div>
                 </div>
+                <button type="button" class="clear-chat-btn" onclick="clearChat()" aria-label="清空当前对话" title="清空当前对话">↺</button>
             </div>
 
             <div id="chatBox"></div>
@@ -1189,8 +1328,6 @@ async def index():
                 <textarea id="userInput" placeholder="请输入你的问题，例如：我想看每日运势、八字、塔罗、风水、运势或姓名分析"></textarea>
                 <button class="send-btn" onclick="sendMessage()">发送</button>
             </div>
-
-            <button class="small-btn" onclick="clearChat()">清空对话</button>
         </section>
 
         <div id="preferenceDialog" class="preference-dialog" hidden aria-hidden="true">
@@ -1215,6 +1352,7 @@ async def index():
                     <div id="personalityOptions" class="personality-options" aria-label="选择回复偏好"></div>
                 </fieldset>
 
+                <p id="preferenceCurrentSelection" class="preference-current-selection"></p>
                 <p class="preference-privacy">昵称、星座和回复偏好只保存在当前浏览器；在你发起聊天时，它们会随请求发送给 DeepSeek，用来调整称呼和回答方式。</p>
                 <div class="preference-actions">
                     <button id="skipPreferences" type="button" class="preference-skip">暂时跳过</button>
@@ -1238,7 +1376,7 @@ async def index():
                 examples: ["我最近有点迷茫，不知道适合看什么", "我想看看事业和感情的大方向", "帮我判断这个问题适合用哪种方式分析"]
             },
             daily_fortune: {
-                placeholder: "例如：我是天秤座，帮我看今天运势",
+                placeholder: "例如：帮我看今天运势",
                 hint: "每日运势：输入星座、生肖或生日，快速生成今日参考和幸运提示。",
                 serviceTitle: "每日运势",
                 serviceDesc: "用星座、生肖或生日作为入口，快速查看今日综合、感情、事业、财运和幸运提示。",
@@ -1246,7 +1384,7 @@ async def index():
                 guideTitle: "每日运势",
                 guideText: "可以直接告诉我你的星座、生肖，或输入出生日期自动识别。默认看今天，也可以问明日或本周。",
                 guidePoints: ["星座入口最轻量", "生肖入口更偏传统", "不需要出生时间和详细地址"],
-                examples: ["我是天秤座，帮我看今天运势", "属龙，今天适合做什么", "我是1998年5月20日出生，看看今日运势"]
+                examples: ["帮我看今天运势", "属龙，今天适合做什么", "我是1998年5月20日出生，看看今日运势"]
             },
             bazi: {
                 placeholder: "例如：我想看八字，重点看今年事业和财运",
@@ -1416,6 +1554,19 @@ async def index():
             return option ? option.name : "";
         }
 
+        function getSkillConfig(skillId) {
+            const config = skillConfigs[skillId] || skillConfigs[""];
+            if (skillId !== "daily_fortune") {
+                return config;
+            }
+
+            return Object.assign({}, config, {
+                placeholder: "例如：帮我看今天运势",
+                guideText: "可以直接告诉我你想看的时间，也可以补充星座、生肖或生日。默认看今天，还可以问明日或本周。",
+                examples: ["帮我看今天运势", "属龙，今天适合做什么", "我是1998年5月20日出生，看看今日运势"]
+            });
+        }
+
         function getPersonalityName(id) {
             const option = findOption(PERSONALITY_OPTIONS, id);
             return option ? option.name : "";
@@ -1431,17 +1582,43 @@ async def index():
 
         function renderPreferenceSummary() {
             const summary = document.getElementById("preferenceSummary");
+            const hasPreferences = Boolean(
+                userPreferences.nickname
+                || userPreferences.zodiac
+                || userPreferences.personality
+            );
+            summary.textContent = hasPreferences
+                ? "已应用你的偏好"
+                : "可选：设置称呼、星座和回复偏好，让对话更贴近你。";
+        }
+
+        function renderPreferenceCurrentSelection() {
+            const summary = document.getElementById("preferenceCurrentSelection");
+            if (!editingPreferences) {
+                summary.textContent = "";
+                return;
+            }
+
             const details = [];
-            if (userPreferences.nickname) {
-                details.push("称呼：" + userPreferences.nickname);
+            const zodiacName = getZodiacName(editingPreferences.zodiac);
+            const personalityName = getPersonalityName(editingPreferences.personality);
+            if (zodiacName) {
+                details.push("你选择的星座：" + zodiacName);
             }
-            if (getZodiacName(userPreferences.zodiac)) {
-                details.push("星座：" + getZodiacName(userPreferences.zodiac));
+            if (personalityName) {
+                details.push("回复偏好：" + personalityName);
             }
-            if (getPersonalityName(userPreferences.personality)) {
-                details.push("回复：" + getPersonalityName(userPreferences.personality));
-            }
-            summary.textContent = details.length ? "已设置 " + details.join(" · ") : "可选：设置称呼、星座和回复偏好，让对话更贴近你。";
+            summary.textContent = details.length ? details.join(" · ") : "尚未选择星座或回复偏好。";
+        }
+
+        function refreshActiveSkillPresentation() {
+            setSkill(activeSkillId);
+            document.querySelectorAll(".guide-card[data-skill-id]").forEach(function(card) {
+                if (card.dataset.skillId === activeSkillId) {
+                    card.replaceWith(createGuideCard(getSkillConfig(activeSkillId), activeSkillId));
+                }
+            });
+            persistCurrentSession();
         }
 
         function renderZodiacOptions() {
@@ -1467,6 +1644,7 @@ async def index():
                 button.addEventListener("click", function() {
                     editingPreferences.zodiac = editingPreferences.zodiac === option.id ? "" : option.id;
                     renderZodiacOptions();
+                    renderPreferenceCurrentSelection();
                 });
                 grid.appendChild(button);
             });
@@ -1485,6 +1663,7 @@ async def index():
                 button.addEventListener("click", function() {
                     editingPreferences.personality = editingPreferences.personality === option.id ? "" : option.id;
                     renderPersonalityOptions();
+                    renderPreferenceCurrentSelection();
                 });
                 container.appendChild(button);
             });
@@ -1495,6 +1674,7 @@ async def index():
             document.getElementById("preferenceNickname").value = editingPreferences.nickname;
             renderZodiacOptions();
             renderPersonalityOptions();
+            renderPreferenceCurrentSelection();
             const dialog = document.getElementById("preferenceDialog");
             dialog.hidden = false;
             dialog.setAttribute("aria-hidden", "false");
@@ -1519,6 +1699,7 @@ async def index():
             userPreferences.setupComplete = true;
             saveStoredPreferences();
             renderPreferenceSummary();
+            refreshActiveSkillPresentation();
             closePreferences();
         }
 
@@ -1655,7 +1836,7 @@ async def index():
             grid.innerHTML = "";
 
             SERVICE_ORDER.forEach(function(skillId) {
-                const config = skillConfigs[skillId] || skillConfigs[""];
+                const config = getSkillConfig(skillId);
                 const card = document.createElement("button");
                 card.type = "button";
                 card.className = "service-card";
@@ -1707,30 +1888,60 @@ async def index():
         function setSkill(skillId) {
             activeSkillId = skillId || "";
 
-            const config = skillConfigs[activeSkillId] || skillConfigs[""];
+            const config = getSkillConfig(activeSkillId);
             document.getElementById("userInput").placeholder = config.placeholder;
-            document.getElementById("currentSkillName").textContent = config.serviceTitle || config.guideTitle || "通用咨询";
-            document.getElementById("skillHint").textContent = config.hint;
+            document.getElementById("skillHint").textContent = "正在对话";
         }
 
-        function addMessage(role, content) {
+        function createMessageShell(role) {
             const chatBox = document.getElementById("chatBox");
+            const previous = chatBox.lastElementChild;
+            const grouped = Boolean(
+                previous
+                && previous.classList.contains("msg")
+                && previous.classList.contains(role)
+                && !previous.classList.contains("thinking-message")
+            );
 
             const div = document.createElement("div");
-            div.className = "msg " + role;
+            div.className = "msg " + role + (grouped ? " grouped" : "");
+
+            const main = document.createElement("div");
+            main.className = "message-main";
+
+            if (role === "assistant") {
+                const avatar = document.createElement("div");
+                avatar.className = "assistant-avatar";
+                avatar.setAttribute("aria-hidden", "true");
+                avatar.textContent = "筮";
+                div.appendChild(avatar);
+
+                const sender = document.createElement("div");
+                sender.className = "message-sender";
+                sender.textContent = "筮渡 AI";
+                main.appendChild(sender);
+            }
 
             const bubble = document.createElement("div");
             bubble.className = "bubble";
+            main.appendChild(bubble);
+            div.appendChild(main);
+
+            return { chatBox: chatBox, message: div, bubble: bubble };
+        }
+
+        function addMessage(role, content) {
+            const shell = createMessageShell(role);
             if (role === "assistant") {
-                bubble.innerHTML = renderAssistantText(content);
+                shell.bubble.classList.add("assistant-text");
+                shell.bubble.innerHTML = renderAssistantText(content);
             } else {
-                bubble.textContent = content;
+                shell.bubble.textContent = content;
             }
 
-            div.appendChild(bubble);
-            chatBox.appendChild(div);
+            shell.chatBox.appendChild(shell.message);
 
-            chatBox.scrollTop = chatBox.scrollHeight;
+            shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
             persistCurrentSession();
         }
 
@@ -1744,25 +1955,69 @@ async def index():
         }
 
         function renderAssistantText(content) {
-            return escapeHtml(content)
-                .replace(/\\*\\*([^*\\n][^*\\n]*?)\\*\\*/g, "$1")
-                .replace(/(^|\\n)([^\\n：:]{1,12}[：:])/g, "$1<strong>$2</strong>");
+            const lines = String(content || "").replace(/\\r\\n?/g, "\\n").split("\\n");
+            const blocks = [];
+            let listItems = [];
+
+            function renderInline(value) {
+                return escapeHtml(value).replace(/\\*\\*([^*\\n][^*\\n]*?)\\*\\*/g, "<strong>$1</strong>");
+            }
+
+            function flushList() {
+                if (!listItems.length) {
+                    return;
+                }
+                blocks.push("<ul class=\"assistant-list\">" + listItems.map(function(item) {
+                    return "<li>" + renderInline(item) + "</li>";
+                }).join("") + "</ul>");
+                listItems = [];
+            }
+
+            lines.forEach(function(line) {
+                const trimmed = line.trim();
+                if (!trimmed) {
+                    flushList();
+                    return;
+                }
+
+                const heading = trimmed.match(/^#{1,3}\\s+(.+)$/);
+                const listItem = trimmed.match(/^(?:[-*•]|\\d+[.)])\\s+(.+)$/);
+                const label = trimmed.match(/^([^：:]{1,16}[：:])\\s*(.*)$/);
+                if (heading) {
+                    flushList();
+                    blocks.push("<div class=\"assistant-heading\">" + renderInline(heading[1]) + "</div>");
+                } else if (listItem) {
+                    listItems.push(listItem[1]);
+                } else {
+                    flushList();
+                    if (label) {
+                        blocks.push("<p><strong>" + renderInline(label[1]) + "</strong>" + (label[2] ? " " + renderInline(label[2]) : "") + "</p>");
+                    } else {
+                        blocks.push("<p>" + renderInline(trimmed) + "</p>");
+                    }
+                }
+            });
+            flushList();
+            return blocks.join("") || "<p>暂时没有可显示的内容。</p>";
         }
 
         function addRichAssistantNode(node) {
-            const chatBox = document.getElementById("chatBox");
-
-            const div = document.createElement("div");
-            div.className = "msg assistant";
-
-            const bubble = document.createElement("div");
-            bubble.className = "bubble rich-bubble";
-            bubble.appendChild(node);
-
-            div.appendChild(bubble);
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
+            const shell = createMessageShell("assistant");
+            shell.bubble.classList.add("rich-bubble");
+            shell.bubble.appendChild(node);
+            shell.chatBox.appendChild(shell.message);
+            shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
             persistCurrentSession();
+        }
+
+        function addThinkingMessage() {
+            const shell = createMessageShell("assistant");
+            shell.message.classList.add("thinking-message");
+            shell.bubble.classList.add("thinking-bubble");
+            shell.bubble.innerHTML = "<span>筮渡正在整理思路</span><span class=\"thinking-dots\" aria-label=\"正在思考\"><span></span><span></span><span></span></span>";
+            shell.chatBox.appendChild(shell.message);
+            shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
+            return shell.message;
         }
 
         function fillPrompt(text) {
@@ -1772,27 +2027,22 @@ async def index():
             persistCurrentSession();
         }
 
-        function createGuideCard(config) {
+        function createGuideCard(config, skillId) {
             const card = document.createElement("div");
             card.className = "guide-card";
-
-            const title = document.createElement("div");
-            title.className = "guide-title";
-            title.textContent = config.guideTitle;
-            card.appendChild(title);
+            card.dataset.skillId = skillId;
 
             const text = document.createElement("p");
-            text.textContent = config.guideText;
+            const welcomeMessages = {
+                "": "你好呀，今天想一起看看什么？你可以从下面选一个方向，或直接说说近况。",
+                daily_fortune: "你好呀，今天想看看哪方面的运势？你可以直接说今天、明日或本周。",
+                tarot: "你好呀，先把这次想问的问题告诉我。问题越具体，后面的抽牌与解读就越贴近你。",
+                bazi: "你好呀，想先从哪个方向看看？你可以慢慢补充出生信息和最关心的事情。",
+                date_selection: "你好呀，先告诉我准备做什么事和大概时间，我陪你一步步梳理。",
+                naming: "你好呀，想分析已有的名字，还是一起想几个新名字？"
+            };
+            text.textContent = welcomeMessages[skillId] || config.guideText;
             card.appendChild(text);
-
-            const points = document.createElement("ul");
-            points.className = "guide-points";
-            config.guidePoints.forEach(function(point) {
-                const item = document.createElement("li");
-                item.textContent = point;
-                points.appendChild(item);
-            });
-            card.appendChild(points);
 
             const chips = document.createElement("div");
             chips.className = "prompt-chips";
@@ -1812,7 +2062,7 @@ async def index():
         }
 
         function showSkillGuide(skillId) {
-            const config = skillConfigs[skillId];
+            const config = getSkillConfig(skillId);
             if (!config || !config.guideTitle) {
                 return;
             }
@@ -1822,7 +2072,7 @@ async def index():
                 tarotFlowState = "waiting_question";
             }
 
-            addRichAssistantNode(createGuideCard(config));
+            addRichAssistantNode(createGuideCard(config, skillId));
 
         }
 
@@ -1851,7 +2101,7 @@ async def index():
             if (options.showUser !== false) {
                 addMessage("user", options.displayText || text);
             }
-            addMessage("assistant", "思考中...");
+            const thinkingMessage = addThinkingMessage();
 
             try {
                 const response = await fetch("/chat", {
@@ -1870,8 +2120,9 @@ async def index():
 
                 const data = await response.json();
 
-                const chatBox = document.getElementById("chatBox");
-                chatBox.lastChild.remove();
+                if (thinkingMessage.isConnected) {
+                    thinkingMessage.remove();
+                }
 
                 if (!response.ok) {
                     addMessage("assistant", data.error || "请求失败");
@@ -1890,8 +2141,9 @@ async def index():
                 addMessage("assistant", data.reply);
 
             } catch (error) {
-                const chatBox = document.getElementById("chatBox");
-                chatBox.lastChild.remove();
+                if (thinkingMessage.isConnected) {
+                    thinkingMessage.remove();
+                }
                 addMessage("assistant", "请求异常：" + error);
             }
         }
