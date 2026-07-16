@@ -591,10 +591,25 @@ async def index():
             <div id="chatBox"></div>
 
             <div class="input-row">
-                <textarea id="userInput" placeholder="请输入你的问题，例如：我想看每日运势、八字、塔罗、风水、运势或姓名分析"></textarea>
+                <div class="input-compose">
+                    <textarea id="userInput" placeholder="请输入你的问题，例如：我想看每日运势、八字、塔罗、风水、运势或姓名分析"></textarea>
+                    <div id="promptFillHint" class="prompt-fill-hint" role="status" hidden>已填入参考问题，可修改后发送</div>
+                </div>
                 <button id="sendMessage" class="send-btn" type="button">发送</button>
             </div>
         </section>
+
+        <div id="tarotPreview" class="tarot-preview" hidden aria-hidden="true">
+            <button id="closeTarotPreview" class="tarot-preview-backdrop" type="button" aria-label="关闭塔罗牌大图"></button>
+            <section class="tarot-preview-panel" role="dialog" aria-modal="true" aria-labelledby="tarotPreviewName">
+                <button id="tarotPreviewCloseButton" class="tarot-preview-close" type="button" aria-label="关闭塔罗牌大图">×</button>
+                <div class="tarot-preview-image-wrap">
+                    <img id="tarotPreviewImage" src="" alt="">
+                </div>
+                <div id="tarotPreviewPosition" class="tarot-preview-position"></div>
+                <h3 id="tarotPreviewName" class="tarot-preview-name"></h3>
+            </section>
+        </div>
 
         <div id="preferenceDialog" class="preference-dialog" hidden aria-hidden="true">
             <div class="preference-backdrop"></div>

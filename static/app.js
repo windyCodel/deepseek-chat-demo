@@ -370,13 +370,20 @@ const skillConfigs = {
             };
         }
 
+        function setTarotFlowState(nextState) {
+            tarotFlowState = nextState;
+            if (document.getElementById("userInput")) {
+                updateUserInputPlaceholder();
+            }
+        }
+
         function restoreTarotState(state) {
             resetTarotFlowState();
             if (!state) {
                 return;
             }
 
-            tarotFlowState = state.tarotFlowState || "idle";
+            setTarotFlowState(state.tarotFlowState || "idle");
             tarotShuffleId = state.tarotShuffleId || "";
             currentTarotCards = state.currentTarotCards || null;
             currentTarotQuestion = state.currentTarotQuestion || "";
@@ -387,6 +394,25 @@ const skillConfigs = {
             tarotReadingRequested = Boolean(state.tarotReadingRequested);
         }
 
+        function removeTransientMessages(chatBox = document.getElementById("chatBox")) {
+            if (!chatBox) {
+                return;
+            }
+            chatBox.querySelectorAll(".thinking-message, .tarot-progress-message").forEach(function(message) {
+                message.remove();
+            });
+        }
+
+        function getPersistableChatHtml(chatBox) {
+            if (!chatBox) {
+                return "";
+            }
+
+            const snapshot = chatBox.cloneNode(true);
+            removeTransientMessages(snapshot);
+            return snapshot.innerHTML;
+        }
+
         function persistCurrentSession() {
             const skillId = activeSkillId || "";
             const chatBox = document.getElementById("chatBox");
@@ -394,7 +420,7 @@ const skillConfigs = {
 
             chatSessions[skillId] = {
                 messages: cloneMessages(messages),
-                chatHtml: chatBox ? chatBox.innerHTML : "",
+                chatHtml: getPersistableChatHtml(chatBox),
                 inputValue: input ? input.value : "",
                 tarotState: getTarotState(),
                 updatedAt: new Date().toISOString()
@@ -405,7 +431,7 @@ const skillConfigs = {
         function rehydrateChatInteractions() {
             document.querySelectorAll(".prompt-chip").forEach(function(chip) {
                 chip.addEventListener("click", function() {
-                    fillPrompt(chip.textContent);
+                    fillPrompt(chip.dataset.promptText || chip.textContent);
                 });
             });
 
@@ -421,16 +447,37 @@ const skillConfigs = {
                         drawTarotNumbers(parseTarotNumbersFromCard(card), true, card);
                     } else if (label === "换个问题") {
                         resetTarotFlowState();
-                        tarotFlowState = "waiting_question";
+                        setTarotFlowState("waiting_question");
                         addMessage("assistant", "好的，请在下方输入新的塔罗问题。");
                         document.getElementById("userInput").focus();
                     }
                 });
             });
 
-            document.querySelectorAll(".tarot-flip-card").forEach(function(button) {
+            document.querySelectorAll(".tarot-flip-card:not(.flipped)").forEach(function(button) {
+                const frontImage = button.querySelector(".tarot-card-front img");
+                const position = button.querySelector(".tarot-flip-position");
+                if (frontImage) {
+                    frontImage.alt = "";
+                    frontImage.setAttribute("aria-hidden", "true");
+                }
+                if (position) {
+                    button.setAttribute("aria-label", position.textContent + "，点击翻牌");
+                }
+            });
+
+            const tarotGrids = document.querySelectorAll(".tarot-flip-grid");
+            const activeTarotGrid = tarotGrids.length ? tarotGrids[tarotGrids.length - 1] : null;
+            if (!activeTarotGrid) {
+                return;
+            }
+
+            activeTarotGrid.querySelectorAll(".tarot-flip-card").forEach(function(button) {
+                const index = Number(button.dataset.tarotIndex);
+                const item = currentTarotCards && currentTarotCards[index];
+                updateTarotCardAccessibility(button, item, revealedTarotIndexes.includes(index));
                 button.addEventListener("click", function() {
-                    flipTarotCard(Number(button.dataset.tarotIndex), button);
+                    flipTarotCard(index, button);
                 });
             });
 
@@ -516,10 +563,16 @@ const skillConfigs = {
                 return;
             }
 
-            if (tarotFlowState === "waiting_numbers") {
+            if (tarotFlowState === "choosing_method") {
+                input.placeholder = "请选择上方抽牌方式，或输入“系统抽牌 / 自己选牌”";
+            } else if (tarotFlowState === "shuffling") {
+                input.placeholder = "正在处理这次抽牌，请稍候";
+            } else if (tarotFlowState === "waiting_numbers") {
                 input.placeholder = "从 1-78 中输入 3 个不重复数字，例如：7、24、66";
-            } else if (tarotFlowState === "waiting_reveal" || tarotFlowState === "reading") {
+            } else if (tarotFlowState === "waiting_reveal") {
                 input.placeholder = "请先点击三张牌完成翻牌";
+            } else if (tarotFlowState === "reading") {
+                input.placeholder = "三张牌已翻开，筮渡正在整理解读";
             } else if (tarotFlowState === "done") {
                 input.placeholder = "可以继续追问某张牌或整体建议，也可以输入新的塔罗问题";
             } else {
@@ -550,6 +603,7 @@ const skillConfigs = {
 
             messages = cloneMessages(session.messages);
             chatBox.innerHTML = session.chatHtml || "";
+            removeTransientMessages(chatBox);
             input.value = session.inputValue || "";
             restoreTarotState(session.tarotState);
             rehydrateChatInteractions();
@@ -637,11 +691,13 @@ const skillConfigs = {
 
         function showServiceView() {
             persistCurrentSession();
+            document.body.classList.remove("chat-mode");
             document.getElementById("chatView").classList.remove("active");
             document.getElementById("serviceView").classList.add("active");
         }
 
         function showChatView() {
+            document.body.classList.add("chat-mode");
             document.getElementById("serviceView").classList.remove("active");
             document.getElementById("chatView").classList.add("active");
         }
@@ -702,6 +758,9 @@ const skillConfigs = {
         }
 
         function addMessage(role, content) {
+            if (role === "assistant") {
+                removeTransientMessages();
+            }
             const shell = createMessageShell(role);
             if (role === "assistant") {
                 shell.bubble.classList.add("assistant-text");
@@ -804,10 +863,23 @@ const skillConfigs = {
             return shell.message;
         }
 
+        function setPromptFillState(active) {
+            const inputRow = document.querySelector(".input-row");
+            const hint = document.getElementById("promptFillHint");
+            if (!inputRow || !hint) {
+                return;
+            }
+
+            inputRow.classList.toggle("prompt-filled", active);
+            hint.hidden = !active;
+        }
+
         function fillPrompt(text) {
             const input = document.getElementById("userInput");
             input.value = text;
+            setPromptFillState(true);
             input.focus();
+            input.setSelectionRange(text.length, text.length);
             persistCurrentSession();
         }
 
@@ -830,25 +902,54 @@ const skillConfigs = {
                 naming: "你好呀，想分析一个已有名字，还是一起想新名字？"
             };
             const quickPrompts = {
-                "": ["最近有点迷茫", "想看感情", "想看事业"],
-                daily_fortune: ["看今天运势", "看明日运势", "看本周运势"],
-                tarot: ["感情走向", "工作选择", "对方想法"],
-                bazi: ["看看事业", "看看感情", "看看财运"],
-                date_selection: ["搬家择日", "开业择日", "签约择日"],
-                naming: ["分析名字", "女孩起名", "店铺起名"]
+                "": [
+                    { label: "最近有点迷茫", prompt: "我最近有些迷茫，不太确定下一步该往哪里走，可以陪我梳理一下现在最需要关注的事情吗？" },
+                    { label: "想看感情", prompt: "我想聊聊最近的感情状态，可以帮我分析目前的关系，以及接下来适合怎么做吗？" },
+                    { label: "想看事业", prompt: "我想梳理一下最近的事业发展，可以帮我分析目前的处境、可能的方向和下一步行动吗？" }
+                ],
+                daily_fortune: [
+                    { label: "看今天运势", prompt: "我想看看今天的整体运势，请结合我选择的星座，分别说说工作、感情和需要注意的地方。" },
+                    { label: "看明日运势", prompt: "我想提前看看明天的整体运势，请结合我选择的星座，说说适合做什么以及需要注意什么。" },
+                    { label: "看本周运势", prompt: "我想看看本周的整体运势，请结合我选择的星座，分析工作、感情和生活节奏。" }
+                ],
+                tarot: [
+                    { label: "感情走向", prompt: "我想看看未来三个月的感情走向，以及这段关系中我需要注意什么。" },
+                    { label: "工作选择", prompt: "我最近正在考虑一项工作选择，想看看不同方向的潜在发展和需要注意的问题。" },
+                    { label: "对方想法", prompt: "我想了解对方目前对这段关系可能抱有什么想法，以及我应该如何看待这段关系。" }
+                ],
+                bazi: [
+                    { label: "看看事业", prompt: "我想通过八字看看自己的事业方向和发展特点，请告诉我需要提供哪些必要信息。" },
+                    { label: "看看感情", prompt: "我想通过八字了解自己的感情特点和关系倾向，请告诉我需要提供哪些必要信息。" },
+                    { label: "看看财运", prompt: "我想通过八字看看自己的财运特点和需要注意的方向，请告诉我需要提供哪些必要信息。" }
+                ],
+                date_selection: [
+                    { label: "搬家择日", prompt: "我准备在近期搬家，请告诉我需要提供哪些信息，再帮我逐步选择合适的日期。" },
+                    { label: "开业择日", prompt: "我准备为新店开业选择日期，请告诉我需要提供哪些信息，再帮我分析合适的时间。" },
+                    { label: "签约择日", prompt: "我准备进行一次重要签约，请告诉我需要提供哪些信息，再帮我选择较合适的日期。" }
+                ],
+                naming: [
+                    { label: "分析名字", prompt: "我想分析一个已有名字，请告诉我需要提供哪些基本信息，并从含义、读音和整体感觉上帮我看看。" },
+                    { label: "女孩起名", prompt: "我想给女孩起名，请告诉我需要提供哪些基本信息，并帮我梳理喜欢的风格和方向。" },
+                    { label: "店铺起名", prompt: "我想给店铺起名，请告诉我需要提供哪些基本信息，并结合行业和期望风格给出建议。" }
+                ]
             };
             text.textContent = welcomeMessages[skillId] || config.guideText;
             card.appendChild(text);
 
             const chips = document.createElement("div");
             chips.className = "prompt-chips";
-            (quickPrompts[skillId] || config.examples.slice(0, 3)).forEach(function(example) {
+            const promptItems = quickPrompts[skillId]
+                || config.examples.slice(0, 3).map(function(example) {
+                    return { label: example, prompt: example };
+                });
+            promptItems.forEach(function(item) {
                 const chip = document.createElement("button");
                 chip.type = "button";
                 chip.className = "prompt-chip";
-                chip.textContent = example;
+                chip.textContent = item.label;
+                chip.dataset.promptText = item.prompt;
                 chip.addEventListener("click", function() {
-                    fillPrompt(example);
+                    fillPrompt(item.prompt);
                 });
                 chips.appendChild(chip);
             });
@@ -865,7 +966,7 @@ const skillConfigs = {
 
             if (skillId === "tarot") {
                 resetTarotFlowState();
-                tarotFlowState = "waiting_question";
+                setTarotFlowState("waiting_question");
             }
 
             addRichAssistantNode(createGuideCard(config, skillId));
@@ -881,6 +982,7 @@ const skillConfigs = {
             }
 
             input.value = "";
+            setPromptFillState(false);
 
             if (!options.bypassSkillFlow && activeSkillId === "tarot") {
                 const handled = await handleTarotFlowInput(text);
@@ -946,7 +1048,7 @@ const skillConfigs = {
 
         async function handleTarotFlowInput(text) {
             if (tarotFlowState === "idle") {
-                tarotFlowState = "waiting_question";
+                setTarotFlowState("waiting_question");
             }
 
             if (tarotFlowState === "waiting_question") {
@@ -992,7 +1094,7 @@ const skillConfigs = {
         }
 
         function resetTarotFlowState() {
-            tarotFlowState = "idle";
+            setTarotFlowState("idle");
             tarotShuffleId = "";
             currentTarotCards = null;
             currentTarotQuestion = "";
@@ -1005,7 +1107,7 @@ const skillConfigs = {
 
         async function startTarotQuestion(question) {
             resetTarotFlowState();
-            tarotFlowState = "choosing_method";
+            setTarotFlowState("choosing_method");
             currentTarotQuestion = question;
             addTarotMethodPrompt();
         }
@@ -1017,6 +1119,58 @@ const skillConfigs = {
             card.querySelectorAll("input, button").forEach(function(element) {
                 element.disabled = true;
             });
+        }
+
+        function enableTarotInlineCard(card) {
+            if (!card) {
+                return;
+            }
+            card.querySelectorAll("input, button").forEach(function(element) {
+                element.disabled = false;
+            });
+        }
+
+        function completeTarotMethodCard(card, methodLabel) {
+            if (!card) {
+                return;
+            }
+
+            card.classList.add("tarot-inline-card-complete");
+            const title = card.querySelector(".tarot-inline-title");
+            const desc = card.querySelector("p");
+            const actions = card.querySelector(".tarot-inline-actions");
+            if (title) {
+                title.textContent = "抽牌方式已确认";
+            }
+            if (desc) {
+                desc.textContent = "已选择：" + methodLabel;
+            }
+            if (actions) {
+                actions.remove();
+            }
+            currentTarotMethodCard = null;
+        }
+
+        function addTarotProgressMessage(text) {
+            const shell = createMessageShell("assistant");
+            shell.message.classList.add("tarot-progress-message");
+            shell.bubble.classList.add("tarot-status-bubble");
+            shell.bubble.textContent = text;
+            shell.chatBox.appendChild(shell.message);
+            shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
+            return shell.message;
+        }
+
+        function completeTarotProgressMessage(message, text) {
+            if (!message || !message.isConnected) {
+                return;
+            }
+            message.classList.remove("tarot-progress-message");
+            message.classList.add("tarot-status-message");
+            const bubble = message.querySelector(".bubble");
+            if (bubble) {
+                bubble.textContent = text;
+            }
         }
 
         function addTarotMethodPrompt() {
@@ -1062,7 +1216,7 @@ const skillConfigs = {
             restart.textContent = "换个问题";
             restart.addEventListener("click", function() {
                 resetTarotFlowState();
-                tarotFlowState = "waiting_question";
+                setTarotFlowState("waiting_question");
                 addMessage("assistant", "好的，请在下方输入新的塔罗问题。");
                 document.getElementById("userInput").focus();
             });
@@ -1077,7 +1231,7 @@ const skillConfigs = {
 
         async function drawTarotRandom(sourceCard, showUserSelection) {
             if (!currentTarotQuestion) {
-                tarotFlowState = "waiting_question";
+                setTarotFlowState("waiting_question");
                 addMessage("assistant", "请先写下本次塔罗想问的问题。");
                 return;
             }
@@ -1086,9 +1240,10 @@ const skillConfigs = {
                 addMessage("user", "系统随机抽牌");
             }
 
-            disableTarotInlineCard(sourceCard || currentTarotMethodCard);
-            tarotFlowState = "shuffling";
-            addMessage("assistant", "正在为这个问题重新洗牌，并随机抽出 3 张牌...");
+            const methodCard = sourceCard || currentTarotMethodCard;
+            disableTarotInlineCard(methodCard);
+            setTarotFlowState("shuffling");
+            const progressMessage = addTarotProgressMessage("正在为这个问题重新洗牌，并随机抽出 3 张牌...");
 
             try {
                 const response = await fetch("/tarot/random-draw", {
@@ -1097,7 +1252,8 @@ const skillConfigs = {
                 const data = await response.json();
 
                 if (!response.ok) {
-                    tarotFlowState = "choosing_method";
+                    enableTarotInlineCard(methodCard);
+                    setTarotFlowState("choosing_method");
                     addMessage("assistant", data.error || "系统抽牌失败，请稍后再试。");
                     return;
                 }
@@ -1108,17 +1264,20 @@ const skillConfigs = {
                 revealedTarotIndexes = [];
                 tarotReadingRequested = false;
                 tarotShuffleId = "";
-                tarotFlowState = "waiting_reveal";
+                completeTarotMethodCard(methodCard, "系统随机抽牌");
+                completeTarotProgressMessage(progressMessage, "已完成洗牌，系统随机抽出 3 张牌。");
+                setTarotFlowState("waiting_reveal");
                 addTarotRevealMessage();
             } catch (error) {
-                tarotFlowState = "choosing_method";
+                enableTarotInlineCard(methodCard);
+                setTarotFlowState("choosing_method");
                 addMessage("assistant", "系统抽牌异常：" + error);
             }
         }
 
         async function startManualTarotDraw(sourceCard, showUserSelection) {
             if (!currentTarotQuestion) {
-                tarotFlowState = "waiting_question";
+                setTarotFlowState("waiting_question");
                 addMessage("assistant", "请先写下本次塔罗想问的问题。");
                 return;
             }
@@ -1127,9 +1286,10 @@ const skillConfigs = {
                 addMessage("user", "我自己选牌");
             }
 
-            disableTarotInlineCard(sourceCard || currentTarotMethodCard);
-            tarotFlowState = "shuffling";
-            addMessage("assistant", "正在为这次问题洗好 78 张牌...");
+            const methodCard = sourceCard || currentTarotMethodCard;
+            disableTarotInlineCard(methodCard);
+            setTarotFlowState("shuffling");
+            const progressMessage = addTarotProgressMessage("正在为这次问题洗好 78 张牌...");
 
             try {
                 const response = await fetch("/tarot/shuffle", {
@@ -1138,17 +1298,21 @@ const skillConfigs = {
                 const data = await response.json();
 
                 if (!response.ok) {
-                    tarotFlowState = "choosing_method";
+                    enableTarotInlineCard(methodCard);
+                    setTarotFlowState("choosing_method");
                     addMessage("assistant", data.error || "洗牌失败，请稍后再试。");
                     return;
                 }
 
                 tarotShuffleId = data.shuffle_id;
                 currentTarotDrawMode = "manual";
-                tarotFlowState = "waiting_numbers";
+                completeTarotMethodCard(methodCard, "我自己选牌");
+                completeTarotProgressMessage(progressMessage, "已完成洗牌，请选择 3 个数字。");
+                setTarotFlowState("waiting_numbers");
                 addTarotNumberPrompt();
             } catch (error) {
-                tarotFlowState = "choosing_method";
+                enableTarotInlineCard(methodCard);
+                setTarotFlowState("choosing_method");
                 addMessage("assistant", "洗牌异常：" + error);
             }
         }
@@ -1238,7 +1402,7 @@ const skillConfigs = {
             restart.textContent = "换个问题";
             restart.addEventListener("click", function() {
                 resetTarotFlowState();
-                tarotFlowState = "waiting_question";
+                setTarotFlowState("waiting_question");
                 addMessage("assistant", "好的，请在下方输入新的塔罗问题。");
                 document.getElementById("userInput").focus();
             });
@@ -1263,7 +1427,7 @@ const skillConfigs = {
 
             if (!tarotShuffleId) {
                 addMessage("assistant", "这次洗牌已经失效了，请重新输入问题开始一次新的抽牌。");
-                tarotFlowState = "waiting_question";
+                setTarotFlowState("waiting_question");
                 return;
             }
 
@@ -1271,9 +1435,12 @@ const skillConfigs = {
                 addMessage("user", "我选择：" + numbers.join("、"));
             }
 
-            disableTarotInlineCard(sourceCard);
-
-            addMessage("assistant", "已确认你的 3 个数字，正在从洗好的牌序中抽出对应牌面...");
+            const numberGrids = document.querySelectorAll(".tarot-number-grid");
+            const latestNumberGrid = numberGrids.length ? numberGrids[numberGrids.length - 1] : null;
+            const numberCard = sourceCard || (latestNumberGrid ? latestNumberGrid.closest(".tarot-inline-card") : null);
+            disableTarotInlineCard(numberCard);
+            setTarotFlowState("shuffling");
+            const progressMessage = addTarotProgressMessage("已确认你的 3 个数字，正在从洗好的牌序中抽出对应牌面...");
 
             try {
                 const response = await fetch("/tarot/draw", {
@@ -1289,6 +1456,8 @@ const skillConfigs = {
                 const data = await response.json();
 
                 if (!response.ok) {
+                    enableTarotInlineCard(numberCard);
+                    setTarotFlowState("waiting_numbers");
                     addMessage("assistant", data.error || "抽牌失败");
                     return;
                 }
@@ -1299,9 +1468,12 @@ const skillConfigs = {
                 revealedTarotIndexes = [];
                 tarotReadingRequested = false;
                 tarotShuffleId = "";
-                tarotFlowState = "waiting_reveal";
+                completeTarotProgressMessage(progressMessage, "已按你选择的数字抽出 3 张牌。");
+                setTarotFlowState("waiting_reveal");
                 addTarotRevealMessage();
             } catch (error) {
+                enableTarotInlineCard(numberCard);
+                setTarotFlowState("waiting_numbers");
                 addMessage("assistant", "抽牌异常：" + error);
             }
         }
@@ -1358,7 +1530,8 @@ const skillConfigs = {
             front.className = "tarot-card-face tarot-card-front";
             const frontImage = document.createElement("img");
             frontImage.src = item.image;
-            frontImage.alt = item.card + " " + item.orientation;
+            frontImage.alt = "";
+            frontImage.setAttribute("aria-hidden", "true");
             if (item.orientation === "逆位") {
                 frontImage.className = "reversed-card-image";
             }
@@ -1383,23 +1556,83 @@ const skillConfigs = {
 
             button.appendChild(inner);
             button.appendChild(meta);
+            updateTarotCardAccessibility(button, item, false);
             return button;
         }
 
+        function updateTarotCardAccessibility(button, item, revealed) {
+            if (!button || !item) {
+                return;
+            }
+
+            const frontImage = button.querySelector(".tarot-card-front img");
+            if (revealed) {
+                button.setAttribute("aria-label", item.position + "，" + item.card + "，" + item.orientation + "，已翻开，再次点击可放大查看");
+                if (frontImage) {
+                    frontImage.alt = item.card + " " + item.orientation;
+                    frontImage.removeAttribute("aria-hidden");
+                }
+            } else {
+                button.setAttribute("aria-label", item.position + "，" + item.choice + "，点击翻牌");
+                if (frontImage) {
+                    frontImage.alt = "";
+                    frontImage.setAttribute("aria-hidden", "true");
+                }
+            }
+        }
+
+        function openTarotPreview(item) {
+            if (!item) {
+                return;
+            }
+
+            const preview = document.getElementById("tarotPreview");
+            const image = document.getElementById("tarotPreviewImage");
+            image.src = item.image;
+            image.alt = item.card + " " + item.orientation;
+            image.classList.toggle("reversed-card-image", item.orientation === "逆位");
+            document.getElementById("tarotPreviewPosition").textContent = item.position + " · " + item.choice;
+            document.getElementById("tarotPreviewName").textContent = item.card + "（" + item.orientation + "）";
+            preview.hidden = false;
+            preview.setAttribute("aria-hidden", "false");
+            document.body.classList.add("tarot-preview-open");
+            document.getElementById("tarotPreviewCloseButton").focus();
+        }
+
+        function closeTarotPreview() {
+            const preview = document.getElementById("tarotPreview");
+            if (preview.hidden) {
+                return;
+            }
+
+            preview.hidden = true;
+            preview.setAttribute("aria-hidden", "true");
+            document.body.classList.remove("tarot-preview-open");
+        }
+
         function flipTarotCard(index, button) {
-            if (!currentTarotCards || revealedTarotIndexes.includes(index) || tarotReadingRequested) {
+            if (!currentTarotCards) {
                 return;
             }
 
             const item = currentTarotCards[index];
+            if (revealedTarotIndexes.includes(index)) {
+                openTarotPreview(item);
+                return;
+            }
+            if (tarotReadingRequested) {
+                return;
+            }
+
             revealedTarotIndexes.push(index);
             button.classList.add("flipped");
             button.querySelector(".tarot-flip-name").textContent = item.card + "（" + item.orientation + "）";
+            updateTarotCardAccessibility(button, item, true);
             persistCurrentSession();
 
             if (revealedTarotIndexes.length === currentTarotCards.length && !tarotReadingRequested) {
                 tarotReadingRequested = true;
-                tarotFlowState = "reading";
+                setTarotFlowState("reading");
                 persistCurrentSession();
                 requestTarotReading();
             }
@@ -1423,8 +1656,7 @@ const skillConfigs = {
                 bypassSkillFlow: true
             });
 
-            tarotFlowState = "done";
-            updateUserInputPlaceholder();
+            setTarotFlowState("done");
             persistCurrentSession();
         }
 
@@ -1435,6 +1667,7 @@ const skillConfigs = {
         }
 
         document.getElementById("userInput").addEventListener("input", function() {
+            setPromptFillState(false);
             persistCurrentSession();
         });
 
@@ -1449,6 +1682,13 @@ const skillConfigs = {
         document.getElementById("backToServices").addEventListener("click", showServiceView);
         document.getElementById("clearChat").addEventListener("click", clearChat);
         document.getElementById("sendMessage").addEventListener("click", sendMessage);
+        document.getElementById("closeTarotPreview").addEventListener("click", closeTarotPreview);
+        document.getElementById("tarotPreviewCloseButton").addEventListener("click", closeTarotPreview);
+        document.addEventListener("keydown", function(event) {
+            if (event.key === "Escape") {
+                closeTarotPreview();
+            }
+        });
         document.querySelectorAll("[data-static-skill-id]").forEach(function(card) {
             card.addEventListener("click", function() {
                 enterChat(card.dataset.staticSkillId || "");
