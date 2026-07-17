@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from lunardate import LunarDate
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from openai import OpenAI
@@ -40,6 +40,15 @@ logger = logging.getLogger(__name__)
 MAX_REQUEST_BODY_BYTES = 64 * 1024
 MAX_CHAT_MESSAGES = 12
 MAX_MESSAGE_LENGTH = 4_000
+CHAT_HISTORY_WINDOW = 8
+CHAT_DEFAULT_MAX_TOKENS = 800
+CHAT_MAX_TOKENS_BY_SKILL = {
+    "daily_fortune": 500,
+    "tarot": 1000,
+    "bazi": 1000,
+    "date_selection": 900,
+    "naming": 900,
+}
 TAROT_SHUFFLE_TTL_SECONDS = 15 * 60
 MAX_TAROT_SHUFFLES = 500
 RATE_LIMIT_WINDOW_SECONDS = 60
@@ -80,7 +89,7 @@ AGENT_SYSTEM_PROMPT = """
 1. 普通回答默认使用“重点优先”的短格式：先用 1 句话给核心结论，再给 2 到 4 个要点。
 2. 如果是在收集信息，只用一句话提问，不要使用分段标题。
 3. 不要一次输出超过 5 个要点，除非用户要求详细分析。
-4. 不要使用 Markdown 星号或加粗语法；需要突出重点时，直接使用“今日重点：”“建议：”这类中文标签。
+4. 所有技能和所有回答都绝对不要输出 Markdown 星号、下划线加粗或其他格式标记。需要突出重点时，直接写“已用信息：”“今日重点：”“建议：”等中文标签；例如只能写“已用信息：”，不能写“**已用信息：**”。
 5. 用户没有要求详细时，不要把回答写成报告；用户要求“详细一点”“展开说”时再补充原因和细节。
 6. 只有当用户明确要求详细分析，或者信息已经收集完整后，才使用以下结构：
 一、基础判断
@@ -97,6 +106,14 @@ PRIVACY_SYSTEM_PROMPT = """
 3. 做八字、运势、择日等分析时，出生地只需要城市级别，不需要街道、门牌号或精确住址。
 4. 做姓名分析时，可以提醒用户使用昵称、化名或只提供需要分析的名字，不要提交证件号码等无关隐私。
 5. 如果用户主动输入明显敏感的信息，要先提醒其不必提供这类信息，并只基于必要的非敏感内容继续。
+"""
+
+FREE_CHAT_SYSTEM_PROMPT = """
+当前启用模式：自由聊聊。
+
+请像自然、可靠的中文聊天助手一样回应，不要套用每日运势、八字或塔罗的固定报告格式。
+如果用户的问题明显适合某个专属模块，可以先正常回应，再用一句话说明可以返回首页进入对应模块获得完整流程；不要声称已经自动切换模块。
+优先理解用户真正想解决的事情，必要时每次只追问一个问题。
 """
 
 LUNAR_MONTH_NAMES = [
@@ -420,8 +437,90 @@ class ChatRequest(BaseModel):
     messages: list
     timezone: str | None = None
     skill_id: str | None = None
+    allow_skill_routing: bool = True
     tarot_cards: list[dict] | None = None
     user_preferences: dict[str, str] | None = None
+
+
+def get_chat_max_tokens(active_skill) -> int:
+    if not active_skill:
+        return CHAT_DEFAULT_MAX_TOKENS
+
+    return CHAT_MAX_TOKENS_BY_SKILL.get(
+        active_skill.get("id"),
+        CHAT_DEFAULT_MAX_TOKENS,
+    )
+
+
+def build_chat_completion_context(req: ChatRequest):
+    normal_messages = validate_chat_messages(req.messages)
+
+    latest_user_text = ""
+    for message in reversed(normal_messages):
+        if message.get("role") == "user":
+            latest_user_text = message.get("content", "")
+            break
+
+    if req.allow_skill_routing:
+        active_skill = resolve_skill(req.skill_id, latest_user_text)
+    else:
+        active_skill = resolve_skill(req.skill_id, "") if req.skill_id else None
+
+    skill_prompt = build_skill_prompt(
+        active_skill,
+        latest_user_text,
+        normal_messages,
+        req.tarot_cards,
+    )
+    if not active_skill and not req.allow_skill_routing:
+        skill_prompt = FREE_CHAT_SYSTEM_PROMPT.strip()
+    forced_calendar_need = get_forced_calendar_need(active_skill)
+    runtime_system_prompt = build_runtime_system_prompt(
+        latest_user_text,
+        req.timezone,
+        skill_prompt,
+        forced_calendar_need,
+        req.user_preferences,
+    )
+
+    final_messages = [
+        {
+            "role": "system",
+            "content": runtime_system_prompt
+        }
+    ] + normal_messages[-CHAT_HISTORY_WINDOW:]
+
+    return {
+        "active_skill": active_skill,
+        "final_messages": final_messages,
+        "max_tokens": get_chat_max_tokens(active_skill),
+    }
+
+
+def create_deepseek_chat_completion(final_messages, max_tokens: int, stream: bool = False):
+    return client.chat.completions.create(
+        model="deepseek-v4-flash",
+        messages=final_messages,
+        temperature=0.7,
+        max_tokens=max_tokens,
+        stream=stream,
+        extra_body={
+            "thinking": {
+                "type": "disabled"
+            }
+        }
+    )
+
+
+def iter_deepseek_text_chunks(response):
+    for chunk in response:
+        if not chunk.choices:
+            continue
+
+        delta = chunk.choices[0].delta
+        content = getattr(delta, "content", None)
+        if content:
+            yield content
 
 
 class TarotDrawRequest(BaseModel):
@@ -534,7 +633,7 @@ async def index():
             <div class="service-hero">
                 <div class="service-hero-top">
                     <div>
-                        <h3>你这次想先看什么？</h3>
+                        <h3>今天想聊什么？</h3>
                         <p>选一个方向后再进入对话。每个方向都会有自己的提问顺序，不需要一次把所有信息都写完。</p>
                     </div>
                     <button id="openPreferences" type="button" class="preference-trigger">偏好设置</button>
@@ -557,22 +656,25 @@ async def index():
                     <div class="service-card-desc">围绕出生信息和关注方向逐步分析。</div>
                     <div class="service-card-meta">进入对话</div>
                 </button>
-                <button type="button" class="service-card" data-static-skill-id="date_selection">
-                    <div class="service-card-title">择日</div>
-                    <div class="service-card-desc">为搬家、开业、签约等事项梳理时间。</div>
-                    <div class="service-card-meta">进入对话</div>
-                </button>
-                <button type="button" class="service-card" data-static-skill-id="naming">
-                    <div class="service-card-title">姓名分析</div>
-                    <div class="service-card-desc">分析已有名字，或一起寻找合适的名字。</div>
-                    <div class="service-card-meta">进入对话</div>
-                </button>
                 <button type="button" class="service-card" data-static-skill-id="">
-                    <div class="service-card-title">通用咨询</div>
+                    <div class="service-card-title">自由聊聊</div>
                     <div class="service-card-desc">还不确定方向时，从这里开始聊聊。</div>
                     <div class="service-card-meta">进入对话</div>
                 </button>
             </div>
+            <details class="more-services">
+                <summary>更多小功能 <span aria-hidden="true">›</span></summary>
+                <div id="secondaryServiceGrid" class="secondary-service-grid" aria-label="更多小功能">
+                    <button type="button" class="secondary-service-card" data-static-skill-id="date_selection">
+                        <span class="secondary-service-title">择日</span>
+                        <span class="secondary-service-desc">搬家、开业、签约等日期参考</span>
+                    </button>
+                    <button type="button" class="secondary-service-card" data-static-skill-id="naming">
+                        <span class="secondary-service-title">姓名分析</span>
+                        <span class="secondary-service-desc">名字含义、风格与起名建议</span>
+                    </button>
+                </div>
+            </details>
         </section>
 
         <section id="chatView" class="app-view chat-view">
@@ -656,47 +758,11 @@ async def chat(req: ChatRequest, request: Request):
         return rate_limited
 
     try:
-        normal_messages = validate_chat_messages(req.messages)
-
-        latest_user_text = ""
-        for m in reversed(normal_messages):
-            if m.get("role") == "user":
-                latest_user_text = m.get("content", "")
-                break
-
-        active_skill = resolve_skill(req.skill_id, latest_user_text)
-        skill_prompt = build_skill_prompt(
-            active_skill,
-            latest_user_text,
-            normal_messages,
-            req.tarot_cards,
-        )
-        forced_calendar_need = get_forced_calendar_need(active_skill)
-        runtime_system_prompt = build_runtime_system_prompt(
-            latest_user_text,
-            req.timezone,
-            skill_prompt,
-            forced_calendar_need,
-            req.user_preferences,
-        )
-
-        final_messages = [
-            {
-                "role": "system",
-                "content": runtime_system_prompt
-            }
-        ] + normal_messages[-10:]
-
-        response = client.chat.completions.create(
-            model="deepseek-v4-flash",
-            messages=final_messages,
-            temperature=0.7,
-            max_tokens=1200,
-            extra_body={
-                "thinking": {
-                    "type": "disabled"
-                }
-            }
+        completion_context = build_chat_completion_context(req)
+        active_skill = completion_context["active_skill"]
+        response = create_deepseek_chat_completion(
+            completion_context["final_messages"],
+            completion_context["max_tokens"],
         )
 
         reply = response.choices[0].message.content
@@ -718,3 +784,47 @@ async def chat(req: ChatRequest, request: Request):
             status_code=500,
             content={"error": "服务暂时不可用，请稍后再试。"},
         )
+
+
+@app.post("/chat/stream")
+async def chat_stream(req: ChatRequest, request: Request):
+    rate_limited = check_rate_limit(request, "chat")
+    if rate_limited:
+        return rate_limited
+
+    try:
+        completion_context = build_chat_completion_context(req)
+        active_skill = completion_context["active_skill"]
+        response = create_deepseek_chat_completion(
+            completion_context["final_messages"],
+            completion_context["max_tokens"],
+            stream=True,
+        )
+    except ValueError as error:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(error)},
+        )
+    except Exception:
+        logger.exception("Streaming chat request failed")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "服务暂时不可用，请稍后再试。"},
+        )
+
+    def stream_response():
+        try:
+            yield from iter_deepseek_text_chunks(response)
+        except Exception:
+            logger.exception("Streaming chat response interrupted")
+            yield "\n服务暂时不可用，请稍后再试。"
+
+    return StreamingResponse(
+        stream_response(),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-Skill-Id": active_skill["id"] if active_skill else "",
+        },
+    )

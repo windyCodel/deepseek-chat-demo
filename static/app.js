@@ -2,7 +2,7 @@ const skillConfigs = {
             "": {
                 placeholder: "请输入你的问题，例如：我想看每日运势、八字、塔罗、择日或姓名分析",
                 hint: "通用咨询：直接描述你的问题，我会尽量判断适合的方向。",
-                serviceTitle: "通用咨询",
+                serviceTitle: "自由聊聊",
                 serviceDesc: "还不确定该选哪类时，从这里开始。你可以先说大概情况，我会帮你归类。",
                 serviceMeta: "适合模糊问题",
                 guideTitle: "通用咨询",
@@ -68,7 +68,8 @@ const skillConfigs = {
         };
 
         const TAROT_CARD_BACK = "/static/tarot/card-back.svg";
-        const SERVICE_ORDER = ["daily_fortune", "tarot", "bazi", "date_selection", "naming", ""];
+        const PRIMARY_SERVICE_ORDER = ["daily_fortune", "tarot", "bazi", ""];
+        const SECONDARY_SERVICE_ORDER = ["date_selection", "naming"];
         const SESSION_STORAGE_KEY = "shidu_ai_sessions_v1";
         const PREFERENCE_STORAGE_KEY = "shidu_ai_preferences_v1";
         const ZODIAC_OPTIONS = [
@@ -102,6 +103,8 @@ const skillConfigs = {
         let currentTarotMethodCard = null;
         let revealedTarotIndexes = [];
         let tarotReadingRequested = false;
+        let dailyFortuneState = defaultDailyFortuneState();
+        let baziFlowState = defaultBaziFlowState();
         let chatSessions = loadStoredSessions();
         let userPreferences = loadStoredPreferences();
         let editingPreferences = null;
@@ -394,12 +397,125 @@ const skillConfigs = {
             tarotReadingRequested = Boolean(state.tarotReadingRequested);
         }
 
+        function defaultDailyFortuneState() {
+            return { period: "today" };
+        }
+
+        function getDailyFortuneState() {
+            return { period: dailyFortuneState.period || "today" };
+        }
+
+        function resetDailyFortuneState() {
+            dailyFortuneState = defaultDailyFortuneState();
+        }
+
+        function restoreDailyFortuneState(state) {
+            const allowedPeriods = ["today", "tomorrow", "week"];
+            dailyFortuneState = {
+                period: state && allowedPeriods.includes(state.period) ? state.period : "today"
+            };
+        }
+
+        function updateDailyFortunePeriod(text) {
+            if (/明天|明日/.test(text)) {
+                dailyFortuneState.period = "tomorrow";
+            } else if (/本周|这周|一周|本星期/.test(text)) {
+                dailyFortuneState.period = "week";
+            } else if (/今天|今日/.test(text)) {
+                dailyFortuneState.period = "today";
+            }
+        }
+
+        function buildDailyFortuneRequest(text) {
+            const periodLabels = {
+                today: "今天",
+                tomorrow: "明天",
+                week: "本周"
+            };
+            const period = periodLabels[dailyFortuneState.period] || "今天";
+            return "当前每日运势的时间范围是“" + period + "”，请保持该时间范围回答。\n用户问题：" + text;
+        }
+
+        function defaultBaziFlowState() {
+            return {
+                stage: "intro",
+                birthDate: "",
+                birthTime: "",
+                birthCity: "",
+                gender: "",
+                focus: ""
+            };
+        }
+
+        function getBaziState() {
+            return Object.assign({}, baziFlowState);
+        }
+
+        function resetBaziFlowState() {
+            baziFlowState = defaultBaziFlowState();
+            if (document.getElementById("userInput")) {
+                updateUserInputPlaceholder();
+            }
+        }
+
+        function restoreBaziState(state, hasLegacyConversation) {
+            const defaults = defaultBaziFlowState();
+            if (!state || typeof state !== "object") {
+                baziFlowState = defaults;
+                if (hasLegacyConversation) {
+                    baziFlowState.stage = "done";
+                }
+                return;
+            }
+
+            const allowedStages = [
+                "intro", "waiting_birth_date", "waiting_birth_time",
+                "waiting_birth_city", "waiting_gender", "waiting_focus",
+                "analyzing", "done"
+            ];
+            baziFlowState = {
+                stage: allowedStages.includes(state.stage) ? state.stage : "intro",
+                birthDate: String(state.birthDate || "").slice(0, 80),
+                birthTime: String(state.birthTime || "").slice(0, 80),
+                birthCity: String(state.birthCity || "").slice(0, 80),
+                gender: String(state.gender || "").slice(0, 30),
+                focus: String(state.focus || "").slice(0, 100)
+            };
+            if (baziFlowState.stage === "analyzing") {
+                baziFlowState.stage = "waiting_focus";
+            }
+        }
+
+        function setBaziFlowStage(stage) {
+            baziFlowState.stage = stage;
+            if (document.getElementById("userInput")) {
+                updateUserInputPlaceholder();
+            }
+        }
+
         function removeTransientMessages(chatBox = document.getElementById("chatBox")) {
             if (!chatBox) {
                 return;
             }
             chatBox.querySelectorAll(".thinking-message, .tarot-progress-message").forEach(function(message) {
                 message.remove();
+            });
+        }
+
+        function removeVisibleMarkdownMarkers(root) {
+            if (!root) {
+                return;
+            }
+
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            const textNodes = [];
+            while (walker.nextNode()) {
+                textNodes.push(walker.currentNode);
+            }
+            textNodes.forEach(function(node) {
+                node.nodeValue = node.nodeValue
+                    .replace(/\*+/g, "")
+                    .replace(/_{2,}/g, "");
             });
         }
 
@@ -423,6 +539,8 @@ const skillConfigs = {
                 chatHtml: getPersistableChatHtml(chatBox),
                 inputValue: input ? input.value : "",
                 tarotState: getTarotState(),
+                dailyFortuneState: getDailyFortuneState(),
+                baziState: getBaziState(),
                 updatedAt: new Date().toISOString()
             };
             saveStoredSessions();
@@ -558,6 +676,20 @@ const skillConfigs = {
         function updateUserInputPlaceholder() {
             const input = document.getElementById("userInput");
             const config = getSkillConfig(activeSkillId);
+            if (activeSkillId === "bazi") {
+                const placeholders = {
+                    intro: config.placeholder,
+                    waiting_birth_date: "请输入出生日期，并说明公历或农历，例如：公历 2000 年 7 月 7 日",
+                    waiting_birth_time: "请输入出生时间，例如：晚上 8 点；不清楚也可以直接说明",
+                    waiting_birth_city: "请输入出生城市，例如：湖南长沙",
+                    waiting_gender: "请输入性别；不方便提供也可以回复“跳过”",
+                    waiting_focus: "最想关注什么？例如：事业、财运、感情或整体",
+                    analyzing: "信息已收齐，筮渡正在整理八字参考",
+                    done: "可以继续追问阶段趋势或某个具体方向"
+                };
+                input.placeholder = placeholders[baziFlowState.stage] || config.placeholder;
+                return;
+            }
             if (activeSkillId !== "tarot") {
                 input.placeholder = config.placeholder;
                 return;
@@ -585,6 +717,8 @@ const skillConfigs = {
             document.getElementById("chatBox").innerHTML = "";
             document.getElementById("userInput").value = "";
             resetTarotFlowState();
+            resetDailyFortuneState();
+            resetBaziFlowState();
 
             if (options.persist !== false) {
                 persistCurrentSession();
@@ -604,8 +738,16 @@ const skillConfigs = {
             messages = cloneMessages(session.messages);
             chatBox.innerHTML = session.chatHtml || "";
             removeTransientMessages(chatBox);
+            chatBox.querySelectorAll(".assistant-text").forEach(function(bubble) {
+                removeVisibleMarkdownMarkers(bubble);
+            });
             input.value = session.inputValue || "";
             restoreTarotState(session.tarotState);
+            restoreDailyFortuneState(session.dailyFortuneState);
+            restoreBaziState(
+                session.baziState,
+                (skillId || "") === "bazi" && messages.length > 1
+            );
             rehydrateChatInteractions();
             refreshRestoredGuideCard(skillId || "");
             refreshHistoricalAnswers();
@@ -626,9 +768,11 @@ const skillConfigs = {
 
         function renderServiceCards() {
             const grid = document.getElementById("serviceGrid");
+            const secondaryGrid = document.getElementById("secondaryServiceGrid");
             grid.innerHTML = "";
+            secondaryGrid.innerHTML = "";
 
-            SERVICE_ORDER.forEach(function(skillId) {
+            PRIMARY_SERVICE_ORDER.forEach(function(skillId) {
                 const config = getSkillConfig(skillId);
                 const card = document.createElement("button");
                 card.type = "button";
@@ -654,19 +798,47 @@ const skillConfigs = {
                 card.appendChild(meta);
                 grid.appendChild(card);
             });
+
+            SECONDARY_SERVICE_ORDER.forEach(function(skillId) {
+                const config = getSkillConfig(skillId);
+                const card = document.createElement("button");
+                card.type = "button";
+                card.className = "secondary-service-card";
+                card.addEventListener("click", function() {
+                    enterChat(skillId);
+                });
+
+                const title = document.createElement("span");
+                title.className = "secondary-service-title";
+                title.textContent = config.serviceTitle;
+
+                const desc = document.createElement("span");
+                desc.className = "secondary-service-desc";
+                desc.textContent = skillId === "date_selection"
+                    ? "搬家、开业、签约等日期参考"
+                    : "名字含义、风格与起名建议";
+
+                card.appendChild(title);
+                card.appendChild(desc);
+                secondaryGrid.appendChild(card);
+            });
         }
 
         function renderServiceFallback() {
             const grid = document.getElementById("serviceGrid");
+            const secondaryGrid = document.getElementById("secondaryServiceGrid");
             const fallbackServices = [
                 ["daily_fortune", "每日运势", "看看今日、明日或本周的节奏与提示。"],
                 ["tarot", "塔罗占卜", "先写下问题，再抽三张牌进行解读。"],
                 ["bazi", "八字分析", "围绕出生信息和关注方向逐步分析。"],
-                ["date_selection", "择日", "为搬家、开业、签约等事项梳理时间。"],
-                ["naming", "姓名分析", "分析已有名字，或一起寻找合适的名字。"],
-                ["", "通用咨询", "还不确定方向时，从这里开始聊聊。"]
+                ["", "自由聊聊", "还不确定方向时，从这里开始聊聊。"]
+            ];
+            const fallbackSecondaryServices = [
+                ["date_selection", "择日", "搬家、开业、签约等日期参考"],
+                ["naming", "姓名分析", "名字含义、风格与起名建议"]
             ];
             grid.innerHTML = "";
+            secondaryGrid.innerHTML = "";
 
             fallbackServices.forEach(function(service) {
                 const card = document.createElement("button");
@@ -686,6 +858,26 @@ const skillConfigs = {
                 card.appendChild(title);
                 card.appendChild(desc);
                 grid.appendChild(card);
+            });
+
+            fallbackSecondaryServices.forEach(function(service) {
+                const card = document.createElement("button");
+                card.type = "button";
+                card.className = "secondary-service-card";
+                card.addEventListener("click", function() {
+                    enterChat(service[0]);
+                });
+
+                const title = document.createElement("span");
+                title.className = "secondary-service-title";
+                title.textContent = service[1];
+                const desc = document.createElement("span");
+                desc.className = "secondary-service-desc";
+                desc.textContent = service[2];
+
+                card.appendChild(title);
+                card.appendChild(desc);
+                secondaryGrid.appendChild(card);
             });
         }
 
@@ -757,13 +949,17 @@ const skillConfigs = {
             return { chatBox: chatBox, message: div, bubble: bubble };
         }
 
-        function addMessage(role, content) {
+        function addMessage(role, content, options = {}) {
             if (role === "assistant") {
                 removeTransientMessages();
             }
             const shell = createMessageShell(role);
             if (role === "assistant") {
                 shell.bubble.classList.add("assistant-text");
+                if (options.resultSkillId !== undefined) {
+                    const resultClass = String(options.resultSkillId || "free").replace(/_/g, "-");
+                    shell.bubble.classList.add("skill-result", "skill-result-" + resultClass);
+                }
                 shell.bubble.innerHTML = renderAssistantText(content);
             } else {
                 shell.bubble.textContent = content;
@@ -777,6 +973,119 @@ const skillConfigs = {
                 shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
             }
             persistCurrentSession();
+        }
+
+        function setAssistantMessageContent(message, content) {
+            const bubble = message ? message.querySelector(".assistant-text") : null;
+            if (!bubble) {
+                return;
+            }
+
+            if (String(content || "").trim()) {
+                bubble.innerHTML = renderAssistantText(content);
+            } else {
+                bubble.innerHTML = '<p class="streaming-placeholder">正在连接 DeepSeek...</p>';
+            }
+        }
+
+        function createStreamingAssistantMessage(resultSkillId) {
+            removeTransientMessages();
+            const shell = createMessageShell("assistant");
+            shell.message.classList.add("streaming-message");
+            shell.bubble.classList.add("assistant-text", "streaming-text");
+            const resultClass = String(resultSkillId || "free").replace(/_/g, "-");
+            shell.bubble.classList.add("skill-result", "skill-result-" + resultClass);
+            setAssistantMessageContent(shell.message, "");
+            shell.chatBox.appendChild(shell.message);
+            shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
+            return shell;
+        }
+
+        function finalizeStreamingAssistantMessage(message, content) {
+            if (!message) {
+                return;
+            }
+
+            message.classList.remove("streaming-message");
+            setAssistantMessageContent(message, content);
+            refreshHistoricalAnswers();
+
+            if (String(content).trim().length > 260) {
+                scrollMessageToTop(message, "smooth");
+            } else {
+                document.getElementById("chatBox").scrollTop = document.getElementById("chatBox").scrollHeight;
+            }
+            persistCurrentSession();
+        }
+
+        async function readChatError(response) {
+            const contentType = response.headers.get("Content-Type") || "";
+            if (contentType.includes("application/json")) {
+                try {
+                    const data = await response.json();
+                    return data.error || "请求失败";
+                } catch (error) {
+                    return "请求失败";
+                }
+            }
+
+            const text = await response.text();
+            return text || "请求失败";
+        }
+
+        async function requestChatStream(payload, resultSkillId) {
+            const response = await fetch("/chat/stream", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(await readChatError(response));
+            }
+
+            const skillId = response.headers.get("X-Skill-Id") || "";
+            const shell = createStreamingAssistantMessage(resultSkillId || skillId);
+            const decoder = new TextDecoder("utf-8");
+            let reply = "";
+
+            if (!response.body) {
+                reply = await response.text();
+                return {
+                    reply: reply,
+                    skillId: skillId,
+                    message: shell.message
+                };
+            }
+
+            const reader = response.body.getReader();
+            try {
+                while (true) {
+                    const result = await reader.read();
+                    if (result.done) {
+                        break;
+                    }
+
+                    reply += decoder.decode(result.value, { stream: true });
+                    setAssistantMessageContent(shell.message, reply);
+                    shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
+                }
+                reply += decoder.decode();
+            } catch (error) {
+                if (!reply.trim()) {
+                    shell.message.remove();
+                    throw error;
+                }
+                reply += "\n服务暂时不可用，请稍后再试。";
+            }
+
+            return {
+                reply: reply,
+                skillId: skillId,
+                message: shell.message
+            };
         }
 
         function escapeHtml(value) {
@@ -794,7 +1103,11 @@ const skillConfigs = {
             let listItems = [];
 
             function renderInline(value) {
-                return escapeHtml(value).replace(/\*\*([^*\n][^*\n]*?)\*\*/g, "<strong>$1</strong>");
+                return escapeHtml(value)
+                    .replace(/\*{2}\s*([^*\n]+?)\s*\*{2}/g, "<strong>$1</strong>")
+                    .replace(/_{2}\s*([^_\n]+?)\s*_{2}/g, "<strong>$1</strong>")
+                    .replace(/\*+/g, "")
+                    .replace(/_{2,}/g, "");
             }
 
             function flushList() {
@@ -967,6 +1280,10 @@ const skillConfigs = {
             if (skillId === "tarot") {
                 resetTarotFlowState();
                 setTarotFlowState("waiting_question");
+            } else if (skillId === "daily_fortune") {
+                resetDailyFortuneState();
+            } else if (skillId === "bazi") {
+                resetBaziFlowState();
             }
 
             addRichAssistantNode(createGuideCard(config, skillId));
@@ -978,72 +1295,182 @@ const skillConfigs = {
             const text = options.text || input.value.trim();
 
             if (!text) {
-                return;
+                return false;
             }
 
             input.value = "";
             setPromptFillState(false);
 
-            if (!options.bypassSkillFlow && activeSkillId === "tarot") {
-                const handled = await handleTarotFlowInput(text);
-                if (handled) {
-                    return;
+            if (!options.bypassSkillFlow) {
+                if (activeSkillId === "daily_fortune") {
+                    updateDailyFortunePeriod(text);
+                } else if (activeSkillId === "bazi") {
+                    const handled = await handleBaziFlowInput(text);
+                    if (handled) {
+                        return true;
+                    }
+                } else if (activeSkillId === "tarot") {
+                    const handled = await handleTarotFlowInput(text);
+                    if (handled) {
+                        return true;
+                    }
                 }
             }
 
+            const requestText = activeSkillId === "daily_fortune" && !options.bypassSkillFlow
+                ? buildDailyFortuneRequest(text)
+                : text;
             messages.push({
                 role: "user",
-                content: text
+                content: requestText
             });
 
             if (options.showUser !== false) {
                 addMessage("user", options.displayText || text);
             }
             const thinkingMessage = addThinkingMessage();
+            const chatPayload = {
+                messages: messages.slice(-12),
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                skill_id: activeSkillId || null,
+                allow_skill_routing: false,
+                tarot_cards: options.tarotCards || null,
+                user_preferences: getChatPreferences()
+            };
 
             try {
-                const response = await fetch("/chat", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        messages: messages.slice(-12),
-                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                        skill_id: activeSkillId || null,
-                        tarot_cards: options.tarotCards || null,
-                        user_preferences: getChatPreferences()
-                    })
-                });
+                const resultSkillId = options.resultSkillId !== undefined
+                    ? options.resultSkillId
+                    : activeSkillId;
+                const data = await requestChatStream(chatPayload, resultSkillId);
+                const reply = data.reply.trim() || "服务暂时不可用，请稍后再试。";
 
-                const data = await response.json();
-
-                if (thinkingMessage.isConnected) {
-                    thinkingMessage.remove();
-                }
-
-                if (!response.ok) {
-                    addMessage("assistant", data.error || "请求失败");
-                    return;
-                }
-
-                if (data.skill_id && data.skill_id !== activeSkillId) {
-                    setSkill(data.skill_id);
+                if (data.skillId && activeSkillId && data.skillId !== activeSkillId) {
+                    setSkill(data.skillId);
                 }
 
                 messages.push({
                     role: "assistant",
-                    content: data.reply
+                    content: reply
                 });
 
-                addMessage("assistant", data.reply);
+                finalizeStreamingAssistantMessage(data.message, reply);
+                return true;
 
             } catch (error) {
                 if (thinkingMessage.isConnected) {
                     thinkingMessage.remove();
                 }
                 addMessage("assistant", "请求异常：" + error);
+                return false;
             }
+        }
+
+        function looksLikeBirthDate(text) {
+            return /(?:公历|阳历|农历|阴历)|\d{4}\s*(?:年|[-/.])\s*\d{1,2}\s*(?:月|[-/.])\s*\d{1,2}/.test(text);
+        }
+
+        function isGeneralBaziQuestion(text) {
+            return /(?:通用|今年|明年|\d{4}\s*年)/.test(text)
+                && /(?:运势|趋势|流年|大方向)/.test(text);
+        }
+
+        function isBaziExplanationQuestion(text) {
+            return /(?:什么是八字|八字是什么|八字.*什么意思|八字.*原理|八字准不准|八字靠谱吗)/.test(text);
+        }
+
+        function addBaziCollectionExchange(userText, assistantText) {
+            messages.push({ role: "user", content: userText });
+            addMessage("user", userText);
+            messages.push({ role: "assistant", content: assistantText });
+            addMessage("assistant", assistantText);
+            persistCurrentSession();
+        }
+
+        function buildBaziAnalysisRequest() {
+            return [
+                "请根据以下已经确认的信息进行八字传统文化参考分析，不要再次询问这些信息。",
+                "出生日期：" + baziFlowState.birthDate,
+                "出生时间：" + baziFlowState.birthTime,
+                "出生城市：" + baziFlowState.birthCity,
+                "性别：" + baziFlowState.gender,
+                "重点关注：" + baziFlowState.focus,
+                "请依次给出：已用信息、基础参考、事业财运、感情人际、阶段趋势、行动建议。不要输出 Markdown 星号。"
+            ].join("\n");
+        }
+
+        async function handleBaziFlowInput(text) {
+            const stage = baziFlowState.stage;
+            if (stage === "done") {
+                return false;
+            }
+
+            if (stage === "intro" || stage === "waiting_birth_date") {
+                if (stage === "intro" && isBaziExplanationQuestion(text)) {
+                    return false;
+                }
+                if (stage === "intro" && isGeneralBaziQuestion(text)) {
+                    setBaziFlowStage("done");
+                    persistCurrentSession();
+                    return false;
+                }
+                if (!looksLikeBirthDate(text)) {
+                    setBaziFlowStage("waiting_birth_date");
+                    addBaziCollectionExchange(
+                        text,
+                        "先告诉我你的出生日期，并说明是公历还是农历，例如“公历 2000 年 7 月 7 日”。"
+                    );
+                    return true;
+                }
+                baziFlowState.birthDate = text.slice(0, 80);
+                setBaziFlowStage("waiting_birth_time");
+                addBaziCollectionExchange(
+                    text,
+                    "接下来告诉我出生时间即可；如果不清楚具体时间，可以说大概时辰或“不清楚”。"
+                );
+                return true;
+            }
+
+            if (stage === "waiting_birth_time") {
+                baziFlowState.birthTime = text.slice(0, 80);
+                setBaziFlowStage("waiting_birth_city");
+                addBaziCollectionExchange(text, "出生地写到城市即可，例如“湖南长沙”，不需要详细地址。");
+                return true;
+            }
+
+            if (stage === "waiting_birth_city") {
+                baziFlowState.birthCity = text.slice(0, 80);
+                setBaziFlowStage("waiting_gender");
+                addBaziCollectionExchange(text, "传统排盘还需要性别，请回复男、女；不方便提供也可以回复“跳过”。");
+                return true;
+            }
+
+            if (stage === "waiting_gender") {
+                if (!/男|女|跳过|不方便|其他/.test(text)) {
+                    addBaziCollectionExchange(text, "请回复男、女；不方便提供也可以直接回复“跳过”。");
+                    return true;
+                }
+                baziFlowState.gender = text.slice(0, 30);
+                setBaziFlowStage("waiting_focus");
+                addBaziCollectionExchange(text, "最后告诉我这次最想关注什么，例如事业、财运、感情或整体趋势。");
+                return true;
+            }
+
+            if (stage === "waiting_focus") {
+                baziFlowState.focus = text.slice(0, 100);
+                setBaziFlowStage("analyzing");
+                const succeeded = await sendMessage({
+                    text: buildBaziAnalysisRequest(),
+                    displayText: text,
+                    bypassSkillFlow: true,
+                    resultSkillId: "bazi"
+                });
+                setBaziFlowStage(succeeded ? "done" : "waiting_focus");
+                persistCurrentSession();
+                return true;
+            }
+
+            return false;
         }
 
         async function handleTarotFlowInput(text) {

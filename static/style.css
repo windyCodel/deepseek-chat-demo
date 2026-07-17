@@ -154,6 +154,75 @@
             font-weight: 600;
         }
 
+        .more-services {
+            margin-top: 16px;
+            border-top: 1px solid #eceaf2;
+        }
+
+        .more-services summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 48px;
+            color: #4f46a5;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .more-services summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .more-services summary span {
+            font-size: 22px;
+            line-height: 1;
+            transition: transform 160ms ease;
+        }
+
+        .more-services[open] summary span {
+            transform: rotate(90deg);
+        }
+
+        .secondary-service-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            padding-bottom: 4px;
+        }
+
+        .secondary-service-card {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            width: 100%;
+            min-height: 70px;
+            padding: 11px 12px;
+            border: 1px solid #e2e1eb;
+            border-radius: 8px;
+            background: #fafafe;
+            color: #2d2938;
+            text-align: left;
+        }
+
+        .secondary-service-card:hover {
+            border-color: #7772cf;
+            background: #f6f5ff;
+        }
+
+        .secondary-service-title {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .secondary-service-desc {
+            margin-top: 4px;
+            color: #6e687b;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
         .chat-header {
             display: flex;
             align-items: center;
@@ -427,6 +496,52 @@
 
         .assistant-conclusion p {
             margin: 0;
+        }
+
+        .skill-result {
+            border-left-width: 3px !important;
+        }
+
+        .skill-result-daily-fortune {
+            border-color: #9bcfc2 !important;
+            background: #f7fcfa !important;
+        }
+
+        .skill-result-daily-fortune strong,
+        .skill-result-daily-fortune .assistant-heading {
+            color: #216b61;
+        }
+
+        .skill-result-bazi {
+            border-color: #a9a1c7 !important;
+            background: #fbfaff !important;
+        }
+
+        .skill-result-bazi strong,
+        .skill-result-bazi .assistant-heading {
+            color: #4f4678;
+        }
+
+        .skill-result-tarot {
+            border-color: #8e80c8 !important;
+            background: #faf8ff !important;
+        }
+
+        .skill-result-tarot strong,
+        .skill-result-tarot .assistant-heading {
+            color: #58499b;
+        }
+
+        .history-answer-collapsed .skill-result-daily-fortune::after {
+            background: linear-gradient(to bottom, rgba(247, 252, 250, 0), #f7fcfa 88%);
+        }
+
+        .history-answer-collapsed .skill-result-bazi::after {
+            background: linear-gradient(to bottom, rgba(251, 250, 255, 0), #fbfaff 88%);
+        }
+
+        .history-answer-collapsed .skill-result-tarot::after {
+            background: linear-gradient(to bottom, rgba(250, 248, 255, 0), #faf8ff 88%);
         }
 
         .guide-card,
@@ -747,6 +862,15 @@
             font-size: 13px;
         }
 
+        .streaming-placeholder {
+            color: #716b80;
+            font-size: 13px;
+        }
+
+        .streaming-text {
+            min-width: 110px;
+        }
+
         .thinking-dots {
             display: inline-flex;
             gap: 3px;
@@ -1012,6 +1136,10 @@
             }
 
             .service-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .secondary-service-grid {
                 grid-template-columns: 1fr;
             }
 
