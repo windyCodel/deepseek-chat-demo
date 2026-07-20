@@ -1,12 +1,12 @@
 const skillConfigs = {
             "": {
-                placeholder: "请输入你的问题，例如：我想看每日运势、八字、塔罗、择日或姓名分析",
+                placeholder: "请输入你的问题，例如：我想聊近况、解梦或看看某个具体问题",
                 hint: "通用咨询：直接描述你的问题，我会尽量判断适合的方向。",
                 serviceTitle: "自由聊聊",
                 serviceDesc: "还不确定该选哪类时，从这里开始。你可以先说大概情况，我会帮你归类。",
                 serviceMeta: "适合模糊问题",
                 guideTitle: "通用咨询",
-                guideText: "你可以直接描述想问的事情。如果更适合每日运势、八字、塔罗、择日或姓名分析，我会引导你补充必要信息。",
+                guideText: "你可以直接描述想问的事情。如果更适合每日运势、八字、塔罗、解梦、择日或姓名分析，我会告诉你对应入口。",
                 guidePoints: ["不用一开始就选得很准", "尽量少提交敏感隐私", "玄学内容只作传统文化和自我反思参考"],
                 examples: ["我最近有点迷茫，不知道适合看什么", "我想看看事业和感情的大方向", "帮我判断这个问题适合用哪种方式分析"]
             },
@@ -43,6 +43,17 @@ const skillConfigs = {
                 guidePoints: ["问题尽量具体", "可系统抽牌，也可自己选牌", "三张牌都翻开后自动解读"],
                 examples: ["我想看看这三个月感情会怎么发展", "我想问现在这份工作接下来适合继续吗", "对方现在对我的真实想法是什么"]
             },
+            dream: {
+                placeholder: "请描述你记得的梦境内容",
+                hint: "解梦：先描述梦境，再补充梦中的情绪和近期现实经历。",
+                serviceTitle: "解梦",
+                serviceDesc: "从梦境意象、情绪和近期经历三个角度提供自我观察参考。",
+                serviceMeta: "适合梦境梳理与情绪观察",
+                guideTitle: "解梦",
+                guideText: "先把你记得的梦描述出来。我会再问梦中的情绪和近期经历，三项收齐后一起分析。",
+                guidePoints: ["不把梦境说成预言", "每次只问一个问题", "不需要提供真实身份信息"],
+                examples: ["我梦见一直被人追赶", "我梦见自己的牙齿掉了", "最近总是反复做同一个梦"]
+            },
             date_selection: {
                 placeholder: "例如：我想给搬家择日，时间大概在下个月",
                 hint: "择日：先明确事项、日期范围和避开条件，再给传统文化参考。",
@@ -69,9 +80,14 @@ const skillConfigs = {
 
         const TAROT_CARD_BACK = "/static/tarot/card-back.svg";
         const PRIMARY_SERVICE_ORDER = ["daily_fortune", "tarot", "bazi", ""];
-        const SECONDARY_SERVICE_ORDER = ["date_selection", "naming"];
+        const SECONDARY_SERVICE_ORDER = ["dream", "date_selection", "naming"];
         const SESSION_STORAGE_KEY = "shidu_ai_sessions_v1";
         const PREFERENCE_STORAGE_KEY = "shidu_ai_preferences_v1";
+        const STREAMING_STATUS_TEXTS = [
+            "正在整理重点...",
+            "正在抽取建议...",
+            "正在生成回复..."
+        ];
         const ZODIAC_OPTIONS = [
             { id: "aries", name: "白羊座", emoji: "♈" },
             { id: "taurus", name: "金牛座", emoji: "♉" },
@@ -105,6 +121,7 @@ const skillConfigs = {
         let tarotReadingRequested = false;
         let dailyFortuneState = defaultDailyFortuneState();
         let baziFlowState = defaultBaziFlowState();
+        let dreamFlowState = defaultDreamFlowState();
         let chatSessions = loadStoredSessions();
         let userPreferences = loadStoredPreferences();
         let editingPreferences = null;
@@ -185,6 +202,145 @@ const skillConfigs = {
             } catch (error) {
                 console.warn("本地偏好保存失败。", error);
             }
+        }
+
+        function hasPreferenceCommandIntent(text) {
+            const value = String(text || "");
+            return /(?:以后|之后|接下来|今后|下次|每次|一直|永远|默认|记住|保存|长期|从现在起).{0,24}(?:叫我|称呼|喊我|回复|回答|语气|风格|偏好|记住|保存|不要|别|无视|忽略|绕过|风险|安全|限制|下咒|诅咒|咒语|符咒|法术|降头|蛊术|做法|控制|报复|彩票|赌博|博彩|下注|盘口|中奖|稳赢|必中|稳赚|诊断|开药|处方|投资|贷款|合同|诉讼|密钥|api\s*key|apikey|token|系统提示|后台消息)/i.test(value)
+                || /(?:叫我|称呼我为?|喊我|称我为)/.test(value)
+                || /(?:回答|回复|语气|风格).{0,8}(?:简洁|短一点|短点|详细|展开|温柔|温和|直接|默认|平衡)/.test(value);
+        }
+
+        function hasSensitivePreferenceContent(text) {
+            const value = String(text || "");
+            return /(身份证|证件号|护照|银行卡|卡号|手机号|电话号码|电话|微信|QQ|邮箱|住址|地址|门牌|精确位置|工作单位|密码|验证码|密钥|api\s*key|apikey|token|secret|cookie|session|authorization|bearer|病历|病例|诊断|用药|处方|裸照|隐私|聊天记录|系统提示|提示词|后台消息|环境变量)/i.test(value)
+                || /(?:自杀|自残|伤害自己|伤害他人|杀人|报复|人肉|跟踪|定位|未成年人性内容|武器|爆炸物|毒品)/.test(value)
+                || /(?:\d[\s-]?){6,}/.test(value)
+                || /https?:\/\//i.test(value);
+        }
+
+        function hasUnsafeOverrideCommand(text) {
+            const value = String(text || "");
+            return /(?:忽略|无视|绕过|覆盖|解除|关闭|禁用).{0,12}(?:安全|规则|限制|隐私|边界|系统提示|提示词)/.test(value)
+                || /(?:不要|别|不准|无需).{0,10}(?:提醒|提示|说明).{0,10}(?:风险|限制|边界|不确定|仅供参考)/.test(value)
+                || /(?:保证|百分百|绝对).{0,8}(?:准确|准|会发生|是真的)/.test(value)
+                || /(?:泄露|显示|告诉我|输出|打印).{0,10}(?:api\s*key|apikey|密钥|token|secret|密码|系统提示|提示词|后台消息|环境变量)/i.test(value)
+                || /(?:下咒|诅咒|咒语|符咒|法术|降头|蛊术|做法).{0,16}(?:害|报复|倒霉|生病|破财|分手|死|控制|压制)/.test(value)
+                || /(?:让|使).{0,8}(?:他|她|对方|某人).{0,12}(?:爱上我|回心转意|分手|倒霉|生病|破财|听我的|受控制)/.test(value)
+                || /(?:彩票|赌博|博彩|盘口|下注|赌运|中奖号码|必中号码|稳赢比分|稳赚套利).{0,12}(?:必中|稳赚|稳赢|保证|号码|买什么|押什么|下注)/.test(value)
+                || /(?:确诊|开药|处方|疾病吉凶|生死判断|法律意见|投资建议|买哪只股票|贷款方案).{0,12}(?:保证|必须|直接按|以后都)/.test(value)
+                || /(?:违法|诈骗|黑客|盗号|人肉|跟踪|定位|伪造|武器|爆炸物|毒品|绕过法律|规避平台).{0,16}(?:方法|步骤|教程|以后都|默认)/.test(value);
+        }
+
+        function getUnsafePreferenceCommandReason(text) {
+            if (!hasPreferenceCommandIntent(text)) {
+                return "";
+            }
+            if (hasUnsafeOverrideCommand(text)) {
+                return "偏好命令包含越权要求，已忽略本地保存。";
+            }
+            if (hasSensitivePreferenceContent(text)) {
+                return "偏好命令包含敏感内容，已忽略本地保存。";
+            }
+            return "";
+        }
+
+        function sanitizeDetectedNickname(value) {
+            const nickname = String(value || "")
+                .replace(/[“”"'‘’]/g, "")
+                .replace(/(?:就行|即可|就可以|就好|吧|呀|哦)$/g, "")
+                .trim()
+                .slice(0, 20);
+            if (!nickname) {
+                return "";
+            }
+            if (/(身份证|手机号|电话|地址|银行卡|密码|验证码|病历|账号|回答|回复|语气)/.test(nickname)) {
+                return "";
+            }
+            if (/(?:\d[\s-]?){6,}/.test(nickname) || /@|https?:\/\//i.test(nickname)) {
+                return "";
+            }
+            return nickname;
+        }
+
+        function detectNicknamePreference(text) {
+            const matches = Array.from(String(text || "").matchAll(
+                /(?:以后|之后|接下来|以后都|以后请|你可以|请)?\s*(?:叫我|称呼我为?|喊我|称我为)\s*[:：]?\s*[“"'‘’]?([^，。,.!?！？\n]{1,24})/g
+            ));
+            if (!matches.length) {
+                return "";
+            }
+
+            for (let index = matches.length - 1; index >= 0; index -= 1) {
+                const match = matches[index];
+                const prefix = String(text).slice(Math.max(0, match.index - 4), match.index);
+                if (/不要|别|不用/.test(prefix)) {
+                    continue;
+                }
+                const nickname = sanitizeDetectedNickname(match[1]);
+                if (nickname) {
+                    return nickname;
+                }
+            }
+            return "";
+        }
+
+        function detectPersonalityPreference(text) {
+            const value = String(text || "");
+            const safeNegativePreference = /(不用太详细|不用太短|别太啰嗦|不要太长|别写太多)/.test(value);
+            if (!safeNegativePreference && /(?:不要|别|不用).{0,3}(?:简洁|短点|短一点|温柔|温和|详细|展开)/.test(value)) {
+                return "";
+            }
+            if (/(温柔一点|温和一点|柔和一点|陪伴一点|安抚一点|语气温柔|语气温和)/.test(value)) {
+                return "gentle";
+            }
+            if (/(详细一点|详细些|展开说|多说一点|讲细一点|说具体一点|分析详细些)/.test(value)) {
+                return "detailed";
+            }
+            if (/(简洁一点|简洁些|短一点|短点|直接一点|精简一点|少啰嗦|别太啰嗦|不要太长|别写太多)/.test(value)) {
+                return "brief";
+            }
+            if (/(默认风格|平衡一点|正常一点|按默认|不用太详细|不用太短)/.test(value)) {
+                return "balance";
+            }
+            return "";
+        }
+
+        function applyExplicitPreferenceUpdates(text) {
+            const unsafeReason = getUnsafePreferenceCommandReason(text);
+            if (unsafeReason) {
+                console.warn(unsafeReason);
+                return false;
+            }
+
+            const nextPreferences = Object.assign({}, userPreferences);
+            const nickname = detectNicknamePreference(text);
+            const personality = detectPersonalityPreference(text);
+            let changed = false;
+
+            if (nickname && nickname !== nextPreferences.nickname) {
+                nextPreferences.nickname = nickname;
+                changed = true;
+            }
+            if (personality && personality !== nextPreferences.personality) {
+                nextPreferences.personality = personality;
+                changed = true;
+            }
+            if (!changed) {
+                return false;
+            }
+
+            nextPreferences.setupComplete = true;
+            userPreferences = normalizePreferences(nextPreferences);
+            saveStoredPreferences();
+            renderPreferenceSummary();
+            if (editingPreferences) {
+                editingPreferences = Object.assign({}, userPreferences);
+                document.getElementById("preferenceNickname").value = editingPreferences.nickname;
+                renderPersonalityOptions();
+                renderPreferenceCurrentSelection();
+            }
+            return true;
         }
 
         function getZodiacName(id) {
@@ -493,6 +649,58 @@ const skillConfigs = {
             }
         }
 
+        function defaultDreamFlowState() {
+            return {
+                stage: "intro",
+                dreamContent: "",
+                emotion: "",
+                reality: ""
+            };
+        }
+
+        function getDreamState() {
+            return Object.assign({}, dreamFlowState);
+        }
+
+        function resetDreamFlowState() {
+            dreamFlowState = defaultDreamFlowState();
+            if (document.getElementById("userInput")) {
+                updateUserInputPlaceholder();
+            }
+        }
+
+        function restoreDreamState(state, hasLegacyConversation) {
+            const defaults = defaultDreamFlowState();
+            if (!state || typeof state !== "object") {
+                dreamFlowState = defaults;
+                if (hasLegacyConversation) {
+                    dreamFlowState.stage = "done";
+                }
+                return;
+            }
+
+            const allowedStages = [
+                "intro", "waiting_content", "waiting_emotion",
+                "waiting_reality", "analyzing", "safety_check", "done"
+            ];
+            dreamFlowState = {
+                stage: allowedStages.includes(state.stage) ? state.stage : "intro",
+                dreamContent: String(state.dreamContent || "").slice(0, 2000),
+                emotion: String(state.emotion || "").slice(0, 300),
+                reality: String(state.reality || "").slice(0, 1000)
+            };
+            if (dreamFlowState.stage === "analyzing") {
+                dreamFlowState.stage = "waiting_reality";
+            }
+        }
+
+        function setDreamFlowStage(stage) {
+            dreamFlowState.stage = stage;
+            if (document.getElementById("userInput")) {
+                updateUserInputPlaceholder();
+            }
+        }
+
         function removeTransientMessages(chatBox = document.getElementById("chatBox")) {
             if (!chatBox) {
                 return;
@@ -541,6 +749,7 @@ const skillConfigs = {
                 tarotState: getTarotState(),
                 dailyFortuneState: getDailyFortuneState(),
                 baziState: getBaziState(),
+                dreamState: getDreamState(),
                 updatedAt: new Date().toISOString()
             };
             saveStoredSessions();
@@ -676,6 +885,19 @@ const skillConfigs = {
         function updateUserInputPlaceholder() {
             const input = document.getElementById("userInput");
             const config = getSkillConfig(activeSkillId);
+            if (activeSkillId === "dream") {
+                const placeholders = {
+                    intro: config.placeholder,
+                    waiting_content: "请尽量按记得的顺序描述梦境",
+                    waiting_emotion: "梦里最强烈的情绪是什么？例如害怕、焦虑、轻松或困惑",
+                    waiting_reality: "最近是否发生过让你联想到这个梦的事情？没有也可以直接说",
+                    analyzing: "信息已收齐，筮渡正在梳理梦境",
+                    safety_check: "请先确认：你现在是否有立即伤害自己的危险？",
+                    done: "可以继续追问某个意象、情绪或反复出现的部分"
+                };
+                input.placeholder = placeholders[dreamFlowState.stage] || config.placeholder;
+                return;
+            }
             if (activeSkillId === "bazi") {
                 const placeholders = {
                     intro: config.placeholder,
@@ -719,6 +941,7 @@ const skillConfigs = {
             resetTarotFlowState();
             resetDailyFortuneState();
             resetBaziFlowState();
+            resetDreamFlowState();
 
             if (options.persist !== false) {
                 persistCurrentSession();
@@ -747,6 +970,10 @@ const skillConfigs = {
             restoreBaziState(
                 session.baziState,
                 (skillId || "") === "bazi" && messages.length > 1
+            );
+            restoreDreamState(
+                session.dreamState,
+                (skillId || "") === "dream" && messages.length > 1
             );
             rehydrateChatInteractions();
             refreshRestoredGuideCard(skillId || "");
@@ -801,6 +1028,11 @@ const skillConfigs = {
 
             SECONDARY_SERVICE_ORDER.forEach(function(skillId) {
                 const config = getSkillConfig(skillId);
+                const descriptions = {
+                    dream: "从意象、情绪和现实经历理解梦境",
+                    date_selection: "搬家、开业、签约等日期参考",
+                    naming: "名字含义、风格与起名建议"
+                };
                 const card = document.createElement("button");
                 card.type = "button";
                 card.className = "secondary-service-card";
@@ -814,9 +1046,7 @@ const skillConfigs = {
 
                 const desc = document.createElement("span");
                 desc.className = "secondary-service-desc";
-                desc.textContent = skillId === "date_selection"
-                    ? "搬家、开业、签约等日期参考"
-                    : "名字含义、风格与起名建议";
+                desc.textContent = descriptions[skillId] || config.serviceDesc;
 
                 card.appendChild(title);
                 card.appendChild(desc);
@@ -834,6 +1064,7 @@ const skillConfigs = {
                 ["", "自由聊聊", "还不确定方向时，从这里开始聊聊。"]
             ];
             const fallbackSecondaryServices = [
+                ["dream", "解梦", "从意象、情绪和现实经历理解梦境"],
                 ["date_selection", "择日", "搬家、开业、签约等日期参考"],
                 ["naming", "姓名分析", "名字含义、风格与起名建议"]
             ];
@@ -982,10 +1213,34 @@ const skillConfigs = {
             }
 
             if (String(content || "").trim()) {
+                stopStreamingStatus(message);
                 bubble.innerHTML = renderAssistantText(content);
             } else {
-                bubble.innerHTML = '<p class="streaming-placeholder">正在连接 DeepSeek...</p>';
+                renderStreamingStatus(message);
             }
+        }
+
+        function getStreamingStatusText(message) {
+            const index = Number(message.dataset.streamingStatusIndex || "0");
+            return STREAMING_STATUS_TEXTS[index % STREAMING_STATUS_TEXTS.length];
+        }
+
+        function renderStreamingStatus(message) {
+            const bubble = message ? message.querySelector(".assistant-text") : null;
+            if (!bubble) {
+                return;
+            }
+
+            bubble.innerHTML = '<p class="streaming-placeholder">' + escapeHtml(getStreamingStatusText(message)) + "</p>";
+        }
+
+        function stopStreamingStatus(message) {
+            if (!message || !message.streamingStatusTimer) {
+                return;
+            }
+
+            window.clearInterval(message.streamingStatusTimer);
+            message.streamingStatusTimer = null;
         }
 
         function createStreamingAssistantMessage(resultSkillId) {
@@ -997,6 +1252,16 @@ const skillConfigs = {
             shell.bubble.classList.add("skill-result", "skill-result-" + resultClass);
             setAssistantMessageContent(shell.message, "");
             shell.chatBox.appendChild(shell.message);
+            shell.message.streamingStatusTimer = window.setInterval(function() {
+                if (!shell.message.isConnected || !shell.message.classList.contains("streaming-message")) {
+                    stopStreamingStatus(shell.message);
+                    return;
+                }
+
+                const nextIndex = Number(shell.message.dataset.streamingStatusIndex || "0") + 1;
+                shell.message.dataset.streamingStatusIndex = String(nextIndex);
+                renderStreamingStatus(shell.message);
+            }, 900);
             shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
             return shell;
         }
@@ -1033,7 +1298,7 @@ const skillConfigs = {
             return text || "请求失败";
         }
 
-        async function requestChatStream(payload, resultSkillId) {
+        async function requestChatStream(payload, resultSkillId, streamShell) {
             const response = await fetch("/chat/stream", {
                 method: "POST",
                 headers: {
@@ -1043,11 +1308,15 @@ const skillConfigs = {
             });
 
             if (!response.ok) {
+                if (streamShell && streamShell.message && streamShell.message.isConnected) {
+                    stopStreamingStatus(streamShell.message);
+                    streamShell.message.remove();
+                }
                 throw new Error(await readChatError(response));
             }
 
             const skillId = response.headers.get("X-Skill-Id") || "";
-            const shell = createStreamingAssistantMessage(resultSkillId || skillId);
+            const shell = streamShell || createStreamingAssistantMessage(resultSkillId || skillId);
             const decoder = new TextDecoder("utf-8");
             let reply = "";
 
@@ -1075,6 +1344,7 @@ const skillConfigs = {
                 reply += decoder.decode();
             } catch (error) {
                 if (!reply.trim()) {
+                    stopStreamingStatus(shell.message);
                     shell.message.remove();
                     throw error;
                 }
@@ -1166,16 +1436,6 @@ const skillConfigs = {
             persistCurrentSession();
         }
 
-        function addThinkingMessage() {
-            const shell = createMessageShell("assistant");
-            shell.message.classList.add("thinking-message");
-            shell.bubble.classList.add("thinking-bubble");
-            shell.bubble.innerHTML = '<span>筮渡正在整理思路</span><span class="thinking-dots" aria-label="正在思考"><span></span><span></span><span></span></span>';
-            shell.chatBox.appendChild(shell.message);
-            shell.chatBox.scrollTop = shell.chatBox.scrollHeight;
-            return shell.message;
-        }
-
         function setPromptFillState(active) {
             const inputRow = document.querySelector(".input-row");
             const hint = document.getElementById("promptFillHint");
@@ -1211,6 +1471,7 @@ const skillConfigs = {
                 daily_fortune: dailyGreeting,
                 tarot: "你好呀，先说说这次最想问的事，后面我们再一起抽牌。",
                 bazi: "你好呀，今天更想看看事业、感情，还是整体状态？",
+                dream: "你好呀，先把你记得的梦描述出来，细节不完整也没关系。",
                 date_selection: "你好呀，先告诉我准备做什么事，我陪你一起理清时间。",
                 naming: "你好呀，想分析一个已有名字，还是一起想新名字？"
             };
@@ -1234,6 +1495,11 @@ const skillConfigs = {
                     { label: "看看事业", prompt: "我想通过八字看看自己的事业方向和发展特点，请告诉我需要提供哪些必要信息。" },
                     { label: "看看感情", prompt: "我想通过八字了解自己的感情特点和关系倾向，请告诉我需要提供哪些必要信息。" },
                     { label: "看看财运", prompt: "我想通过八字看看自己的财运特点和需要注意的方向，请告诉我需要提供哪些必要信息。" }
+                ],
+                dream: [
+                    { label: "梦见被追", prompt: "我梦见自己一直被人追赶，但怎么跑都甩不掉。" },
+                    { label: "梦见掉牙", prompt: "我梦见自己的牙齿突然掉了，醒来后印象很深。" },
+                    { label: "反复做梦", prompt: "最近我总是反复做同一个梦，想梳理一下它可能和什么有关。" }
                 ],
                 date_selection: [
                     { label: "搬家择日", prompt: "我准备在近期搬家，请告诉我需要提供哪些信息，再帮我逐步选择合适的日期。" },
@@ -1284,6 +1550,8 @@ const skillConfigs = {
                 resetDailyFortuneState();
             } else if (skillId === "bazi") {
                 resetBaziFlowState();
+            } else if (skillId === "dream") {
+                resetDreamFlowState();
             }
 
             addRichAssistantNode(createGuideCard(config, skillId));
@@ -1300,12 +1568,20 @@ const skillConfigs = {
 
             input.value = "";
             setPromptFillState(false);
+            if (!options.bypassSkillFlow) {
+                applyExplicitPreferenceUpdates(text);
+            }
 
             if (!options.bypassSkillFlow) {
                 if (activeSkillId === "daily_fortune") {
                     updateDailyFortunePeriod(text);
                 } else if (activeSkillId === "bazi") {
                     const handled = await handleBaziFlowInput(text);
+                    if (handled) {
+                        return true;
+                    }
+                } else if (activeSkillId === "dream") {
+                    const handled = await handleDreamFlowInput(text);
                     if (handled) {
                         return true;
                     }
@@ -1328,7 +1604,6 @@ const skillConfigs = {
             if (options.showUser !== false) {
                 addMessage("user", options.displayText || text);
             }
-            const thinkingMessage = addThinkingMessage();
             const chatPayload = {
                 messages: messages.slice(-12),
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -1338,11 +1613,14 @@ const skillConfigs = {
                 user_preferences: getChatPreferences()
             };
 
+            const resultSkillId = options.resultSkillId !== undefined
+                ? options.resultSkillId
+                : activeSkillId;
+            let streamShell = null;
+
             try {
-                const resultSkillId = options.resultSkillId !== undefined
-                    ? options.resultSkillId
-                    : activeSkillId;
-                const data = await requestChatStream(chatPayload, resultSkillId);
+                streamShell = createStreamingAssistantMessage(resultSkillId);
+                const data = await requestChatStream(chatPayload, resultSkillId, streamShell);
                 const reply = data.reply.trim() || "服务暂时不可用，请稍后再试。";
 
                 if (data.skillId && activeSkillId && data.skillId !== activeSkillId) {
@@ -1358,8 +1636,9 @@ const skillConfigs = {
                 return true;
 
             } catch (error) {
-                if (thinkingMessage.isConnected) {
-                    thinkingMessage.remove();
+                if (streamShell && streamShell.message && streamShell.message.isConnected) {
+                    stopStreamingStatus(streamShell.message);
+                    streamShell.message.remove();
                 }
                 addMessage("assistant", "请求异常：" + error);
                 return false;
@@ -1395,7 +1674,8 @@ const skillConfigs = {
                 "出生城市：" + baziFlowState.birthCity,
                 "性别：" + baziFlowState.gender,
                 "重点关注：" + baziFlowState.focus,
-                "请依次给出：已用信息、基础参考、事业财运、感情人际、阶段趋势、行动建议。不要输出 Markdown 星号。"
+                "请依次给出：已用信息、基础参考、事业财运、感情人际、阶段趋势、行动建议。",
+                "要求：先说明不做绝对断命；健康只给生活习惯提醒，财运只给风险意识和预算建议；如果用户后续追问，请沿用这些信息，不要重置流程；不要重复询问信息，不要输出 Markdown 星号。"
             ].join("\n");
         }
 
@@ -1466,6 +1746,151 @@ const skillConfigs = {
                     resultSkillId: "bazi"
                 });
                 setBaziFlowStage(succeeded ? "done" : "waiting_focus");
+                persistCurrentSession();
+                return true;
+            }
+
+            return false;
+        }
+
+        function looksLikeDreamContent(text) {
+            return text.trim().length >= 8
+                && /(?:梦见|梦到|梦里|做了一个梦|昨晚的梦|反复做梦)/.test(text);
+        }
+
+        function shortenReflection(text, maxLength = 36) {
+            const normalized = text.replace(/\s+/g, " ").trim();
+            return normalized.length > maxLength
+                ? normalized.slice(0, maxLength) + "…"
+                : normalized;
+        }
+
+        function hasExplicitSafetyConcern(text) {
+            const normalized = text.replace(/\s+/g, "");
+            const describesDream = /(?:梦见|梦到|梦里)/.test(normalized);
+            const explicitlyInReality = /(?:现实中|我现在|此刻|醒来后|梦外)/.test(normalized);
+            if (describesDream && !explicitlyInReality) {
+                return false;
+            }
+            const explicitCurrentRisk = /(?:我现在|现实中|最近|此刻|真的).{0,8}(?:想自杀|不想活|想死|伤害自己|结束生命)/.test(normalized);
+            const statedPlan = /(?:已经|准备|打算|马上).{0,8}(?:自杀|伤害自己|结束生命)/.test(normalized);
+            const directStatement = /^(?:我)?(?:真的)?(?:想自杀|不想活了|想死|想伤害自己)/.test(normalized);
+            return explicitCurrentRisk || statedPlan || directStatement;
+        }
+
+        function addDreamCollectionExchange(userText, assistantText) {
+            messages.push({ role: "user", content: userText });
+            addMessage("user", userText);
+            messages.push({ role: "assistant", content: assistantText });
+            addMessage("assistant", assistantText);
+            persistCurrentSession();
+        }
+
+        function buildDreamAnalysisRequest() {
+            return [
+                "请根据以下已经确认的信息进行梦境自我观察分析，不要再次询问这些信息。",
+                "梦境内容：" + dreamFlowState.dreamContent,
+                "梦中最强烈的情绪：" + dreamFlowState.emotion,
+                "近期现实关联：" + dreamFlowState.reality,
+                "请严格依次给出：情绪安放、梦境主题、关键意象、情绪线索、现实联想、给你的提醒。",
+                "要求：区分梦里发生的事、醒来后的感受和现实可能联想；如果用户后续追问，请沿用这次梦境信息，不要重置流程；不要把梦境说成预言，不要进行心理疾病诊断，不要输出 Markdown 星号。"
+            ].join("\n");
+        }
+
+        function handleDreamSafetyCheck(text) {
+            const normalized = text.replace(/\s+/g, "").replace(/[，。,.！!？?]/g, "");
+            const saysNo = /^(?:(?:我现在|目前)?(?:没有|没|安全|没有打算|没打算)|不是|不会)$/.test(normalized);
+            const saysYes = hasExplicitSafetyConcern(text)
+                || /^(?:有|是|会|马上|控制不住|已经准备)$/.test(normalized);
+
+            if (saysYes) {
+                addDreamCollectionExchange(
+                    text,
+                    "谢谢你直接告诉我。请现在先不要独处，立即联系当地紧急服务，或让一位可信任的人来到你身边陪你。这里不能替代紧急援助；如果可以，请现在就拨打当地急救或报警电话。"
+                );
+                return true;
+            }
+
+            if (saysNo) {
+                setDreamFlowStage("done");
+                addDreamCollectionExchange(
+                    text,
+                    "谢谢你确认目前没有立即危险。我们先暂停解梦；如果这些念头反复出现，请尽快联系专业心理或医疗支持，也可以告诉一位可信任的人，让自己不必独自承担。"
+                );
+                return true;
+            }
+
+            addDreamCollectionExchange(
+                text,
+                "我需要先确认你的安全：你现在是否有立即伤害自己的打算或危险？请直接回答“有”或“没有”。"
+            );
+            return true;
+        }
+
+        async function handleDreamFlowInput(text) {
+            const stage = dreamFlowState.stage;
+            if (stage === "safety_check") {
+                return handleDreamSafetyCheck(text);
+            }
+            if (hasExplicitSafetyConcern(text)) {
+                setDreamFlowStage("safety_check");
+                addDreamCollectionExchange(
+                    text,
+                    "听起来你现在承受着很强的痛苦，我先暂停解梦并认真确认你的安全。你现在是否有立即伤害自己的打算或危险？请直接回答“有”或“没有”。"
+                );
+                return true;
+            }
+            if (stage === "done") {
+                if (/(?:换个梦|另一个梦|新的梦|重新解梦)/.test(text)) {
+                    resetDreamFlowState();
+                    setDreamFlowStage("waiting_content");
+                    addDreamCollectionExchange(text, "好的，请描述这个新梦里你记得的内容，细节不完整也没关系。");
+                    return true;
+                }
+                return false;
+            }
+
+            if (stage === "intro" || stage === "waiting_content") {
+                const hasEnoughContent = stage === "waiting_content"
+                    ? text.trim().length >= 4
+                    : looksLikeDreamContent(text);
+                if (!hasEnoughContent) {
+                    setDreamFlowStage("waiting_content");
+                    addDreamCollectionExchange(text, "先把你记得的梦境描述出来，可以从人物、地点和发生的事情开始说。");
+                    return true;
+                }
+                dreamFlowState.dreamContent = text.slice(0, 2000);
+                setDreamFlowStage("waiting_emotion");
+                addDreamCollectionExchange(
+                    text,
+                    "谢谢你把这个梦说出来。听起来其中有些画面给你留下了很深的印象；梦境本身并不表示现实一定会发生坏事。在这个梦里，你最强烈的情绪是什么？不想展开也可以回复“跳过”。"
+                );
+                return true;
+            }
+
+            if (stage === "waiting_emotion") {
+                dreamFlowState.emotion = text.slice(0, 300);
+                setDreamFlowStage("waiting_reality");
+                const emotionReply = /(?:跳过|不想说|不清楚)/.test(text)
+                    ? "没关系，我们不展开这一部分。"
+                    : "你提到最明显的感受是“" + shortenReflection(text) + "”。带着这种感受醒来，可能会让人有些不舒服。";
+                addDreamCollectionExchange(
+                    text,
+                    emotionReply + "最近是否发生过让你联想到这个梦的事情，或者有持续挂心的问题？如果没有或不想回答，也可以直接说“没有”或“跳过”。"
+                );
+                return true;
+            }
+
+            if (stage === "waiting_reality") {
+                dreamFlowState.reality = text.slice(0, 1000);
+                setDreamFlowStage("analyzing");
+                const succeeded = await sendMessage({
+                    text: buildDreamAnalysisRequest(),
+                    displayText: text,
+                    bypassSkillFlow: true,
+                    resultSkillId: "dream"
+                });
+                setDreamFlowStage(succeeded ? "done" : "waiting_reality");
                 persistCurrentSession();
                 return true;
             }

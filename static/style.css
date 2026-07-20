@@ -532,6 +532,16 @@
             color: #58499b;
         }
 
+        .skill-result-dream {
+            border-color: #91b4ca !important;
+            background: #f7fbfd !important;
+        }
+
+        .skill-result-dream strong,
+        .skill-result-dream .assistant-heading {
+            color: #345f78;
+        }
+
         .history-answer-collapsed .skill-result-daily-fortune::after {
             background: linear-gradient(to bottom, rgba(247, 252, 250, 0), #f7fcfa 88%);
         }
@@ -542,6 +552,10 @@
 
         .history-answer-collapsed .skill-result-tarot::after {
             background: linear-gradient(to bottom, rgba(250, 248, 255, 0), #faf8ff 88%);
+        }
+
+        .history-answer-collapsed .skill-result-dream::after {
+            background: linear-gradient(to bottom, rgba(247, 251, 253, 0), #f7fbfd 88%);
         }
 
         .guide-card,
